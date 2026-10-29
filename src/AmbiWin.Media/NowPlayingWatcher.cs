@@ -44,6 +44,9 @@ public sealed class NowPlayingWatcher : IDisposable
     /// <summary>Title and artist of the track the palette came from, for the tray tooltip and logs.</summary>
     public string? CurrentTrack { get; private set; }
 
+    /// <summary>Raised (on a thread-pool thread) when <see cref="CurrentTrack"/> changes.</summary>
+    public event Action<string?>? TrackChanged;
+
     public async Task StartAsync()
     {
         try
@@ -124,6 +127,7 @@ public sealed class NowPlayingWatcher : IDisposable
                 _lastTrackKey = trackKey;
                 _retriedArtwork = false;
                 CurrentTrack = string.IsNullOrEmpty(props.Artist) ? props.Title : $"{props.Artist} — {props.Title}";
+                TrackChanged?.Invoke(CurrentTrack);
             }
 
             if (props.Thumbnail is null)

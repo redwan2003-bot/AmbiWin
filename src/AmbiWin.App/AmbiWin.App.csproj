@@ -1,14 +1,34 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <!--
-    AmbiWin.App: composition root. A console stub for now; it becomes a WinExe with
-    the tray icon and WinUI 3 settings window in weeks 4-5.
+    AmbiWin.App: the tray app. Composition root, tray icon, WPF settings window,
+    settings persistence, start with Windows, single instance.
   -->
   <Import Project="..\..\build\AmbiWin.Windows.props" />
   <PropertyGroup>
-    <OutputType>Exe</OutputType>
+    <OutputType>WinExe</OutputType>
     <AssemblyName>AmbiWin</AssemblyName>
+    <RootNamespace>AmbiWin.App</RootNamespace>
+    <UseWPF>true</UseWPF>
+    <UseWindowsForms>true</UseWindowsForms>
+    <ApplicationIcon>Assets\AmbiWin.ico</ApplicationIcon>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
     <RuntimeIdentifiers>win-x64;win-arm64</RuntimeIdentifiers>
+    <!-- WPF0001: Fluent ThemeMode is marked experimental in WPF; we opt in deliberately. -->
+    <NoWarn>$(NoWarn);WPF0001</NoWarn>
+    <!-- WinForms and WPF both define types like Application; keep implicit usings to System.* only. -->
+    <ImplicitUsings>disable</ImplicitUsings>
   </PropertyGroup>
+  <ItemGroup>
+    <Using Include="System" />
+    <Using Include="System.Collections.Generic" />
+    <Using Include="System.IO" />
+    <Using Include="System.Linq" />
+    <Using Include="System.Threading" />
+    <Using Include="System.Threading.Tasks" />
+  </ItemGroup>
+  <ItemGroup>
+    <Resource Include="Assets\AmbiWin.ico" />
+  </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\AmbiWin.Core\AmbiWin.Core.csproj" />
     <ProjectReference Include="..\AmbiWin.Audio\AmbiWin.Audio.csproj" />

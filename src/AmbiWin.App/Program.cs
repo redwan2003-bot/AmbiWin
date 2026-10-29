@@ -5,6 +5,7 @@ using AmbiWin.Core.Color;
 using AmbiWin.Core.Diagnostics;
 using AmbiWin.Core.Settings;
 using AmbiWin.Core.Threading;
+using AmbiWin.Media;
 using AmbiWin.Render;
 
 namespace AmbiWin.App;
@@ -43,8 +44,11 @@ internal static class Program
         using var renderer = new GlowRenderer(settingsSnapshot, palette, audio, wake);
         using var loopback = new LoopbackSource(audio, new BeatDetectorOptions().WithSensitivity(settings.Sensitivity));
 
+        using var nowPlaying = new NowPlayingWatcher(palette);
+
         renderer.Start();
         loopback.Start();
+        nowPlaying.StartAsync().GetAwaiter().GetResult();
 
         var quit = new ManualResetEventSlim();
         Console.CancelKeyPress += (_, e) => { e.Cancel = true; quit.Set(); };

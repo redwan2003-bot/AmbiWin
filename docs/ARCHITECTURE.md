@@ -28,5 +28,7 @@ Record each decision with its date and reason. The week-1 spike decides the firs
 | --- | --- | --- |
 | 2026-10-29 | .NET 10 LTS, Windows 11 minimum, MIT | .NET 8 support ends Nov 2026; Windows 10 is out of support |
 | 2026-10-29 | Beat detector: 1.0 s flux history, 3× mean gate, bass-weighted per-bin flux | A 0.5 s history fired early onsets below ~120 BPM; see `BeatDetectorOptions` |
-| _week 1_ | Overlay approach: layered + DirectComposition, or the `UpdateLayeredWindow` fallback | _pending spike_ |
-| _week 1_ | Native AOT: yes or no | _pending spike_ |
+| 2026-10-29 | 3-day build: WPF settings window instead of WinUI 3; self-contained exe instead of Native AOT | Removes the Windows App SDK runtime and AOT trimming risk from a 3-day schedule |
+| 2026-10-29 | Overlay: layered, click-through window + DirectComposition, 4 strip swap chains | Day-1 test on Windows 11 (build 26300, Intel UHD): visible, click-through, absent from screenshots |
+| 2026-10-29 | Frame cap: draw on every Nth compositor tick, target 60 fps | 144 Hz uncapped cost ~8% CPU; capped: 71 fps at 0.8–1.2% process CPU |
+| 2026-10-29 | Audio: NAudio 3 `WasapiRecorderBuilder` loopback, MMCSS "Audio" priority | `WasapiLoopbackCapture` is obsolete in NAudio 3 |

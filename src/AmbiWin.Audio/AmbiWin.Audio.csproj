@@ -2,6 +2,9 @@
   <!-- AmbiWin.Audio: WASAPI loopback capture and device-change handling (week 2). -->
   <Import Project="..\..\build\AmbiWin.Windows.props" />
   <ItemGroup>
+    <PackageReference Include="NAudio.Wasapi" />
+  </ItemGroup>
+  <ItemGroup>
     <ProjectReference Include="..\AmbiWin.Core\AmbiWin.Core.csproj" />
   </ItemGroup>
 </Project>

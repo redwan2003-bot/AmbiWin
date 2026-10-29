@@ -2,6 +2,12 @@
   <!-- AmbiWin.Render: overlay windows, DirectComposition swap chains, glow shader, frame loop (week 1). -->
   <Import Project="..\..\build\AmbiWin.Windows.props" />
   <ItemGroup>
+    <PackageReference Include="Vortice.D3DCompiler" />
+    <PackageReference Include="Vortice.Direct3D11" />
+    <PackageReference Include="Vortice.DirectComposition" />
+    <PackageReference Include="Vortice.DXGI" />
+  </ItemGroup>
+  <ItemGroup>
     <ProjectReference Include="..\AmbiWin.Core\AmbiWin.Core.csproj" />
   </ItemGroup>
 </Project>

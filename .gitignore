@@ -12,3 +12,6 @@ publish/
 *.DotSettings.user
 Thumbs.db
 .DS_Store
+
+# Local run logs
+.logs/

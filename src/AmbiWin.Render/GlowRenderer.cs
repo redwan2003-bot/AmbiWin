@@ -23,6 +23,7 @@ namespace AmbiWin.Render;
 public sealed class GlowRenderer : IDisposable
 {
     private const float PaletteFadeSeconds = 0.8f;
+    private const double TargetFps = 60; // a soft glow gains nothing from 144 fps; this halves GPU and CPU work
     private const int DxgiErrorDeviceRemoved = unchecked((int)0x887A0005);
     private const int DxgiErrorDeviceReset = unchecked((int)0x887A0007);
 
@@ -112,6 +113,9 @@ public sealed class GlowRenderer : IDisposable
         double statsAt = last + 10;
         long framesAtStats = 0;
         double busySeconds = 0;
+        double lastFrameAt = 0;
+        double lastFlushAt = last;
+        double tickSeconds = 1.0 / 60; // refined from measured compositor ticks
 
         while (!_stop)
         {
@@ -175,11 +179,21 @@ public sealed class GlowRenderer : IDisposable
 
             if (active || settling || fading || dirty)
             {
-                long start = Stopwatch.GetTimestamp();
-                if (!RenderFrame(settings)) RecoverDevice();
-                busySeconds += Stopwatch.GetElapsedTime(start).TotalSeconds;
-                FramesRendered++;
-                _ = Native.DwmFlush(); // pace to the compositor: one frame per display refresh
+                // Frame cap: draw on every Nth compositor tick so the rate stays near TargetFps on any refresh rate
+                // (144 Hz → 72 fps, 120 Hz → 60, 60 Hz → 60). Half a tick of slack keeps frames on tick boundaries.
+                if (dirty || now >= lastFrameAt + 1.0 / TargetFps - tickSeconds * 0.5)
+                {
+                    long start = Stopwatch.GetTimestamp();
+                    if (!RenderFrame(settings)) RecoverDevice();
+                    busySeconds += Stopwatch.GetElapsedTime(start).TotalSeconds;
+                    FramesRendered++;
+                    lastFrameAt = now;
+                }
+                _ = Native.DwmFlush(); // wait for the next compositor tick
+                double afterFlush = clock.Elapsed.TotalSeconds;
+                double tick = afterFlush - lastFlushAt;
+                if (tick > 0.002 && tick < 0.05) tickSeconds += (tick - tickSeconds) * 0.1; // smoothed refresh period
+                lastFlushAt = afterFlush;
             }
             else
             {
@@ -191,7 +205,8 @@ public sealed class GlowRenderer : IDisposable
             {
                 long frames = FramesRendered - framesAtStats;
                 Log.Info($"Render: {frames / 10.0:0.0} fps over 10 s, {(frames > 0 ? busySeconds / frames * 1000 : 0):0.00} ms CPU/frame, " +
-                         $"{(active ? "active" : settling || fading ? "settling" : "parked")}, level {_level.Value:0.00}, overlays {_overlays.Count}");
+                         $"{(active ? "active" : settling || fading ? "settling" : "parked")}, level {_level.Value:0.00}, " +
+                         $"refresh {1 / tickSeconds:0} Hz, process CPU {CpuPercent():0.0}%, overlays {_overlays.Count}");
                 framesAtStats = FramesRendered;
                 busySeconds = 0;
                 statsAt = now + 10;
@@ -275,6 +290,20 @@ public sealed class GlowRenderer : IDisposable
     }
 
     private static float Clamp01(float v) => Math.Clamp(v, 0f, 1f);
+
+    private TimeSpan _cpuAtLastSample;
+    private long _wallAtLastSample = Stopwatch.GetTimestamp();
+
+    /// <summary>Whole-process CPU use since the last call, as % of all cores (the number Task Manager shows).</summary>
+    private double CpuPercent()
+    {
+        var cpu = Process.GetCurrentProcess().TotalProcessorTime;
+        double wall = Stopwatch.GetElapsedTime(_wallAtLastSample).TotalSeconds;
+        double percent = wall > 0 ? (cpu - _cpuAtLastSample).TotalSeconds / (wall * Environment.ProcessorCount) * 100 : 0;
+        _cpuAtLastSample = cpu;
+        _wallAtLastSample = Stopwatch.GetTimestamp();
+        return percent;
+    }
 
     private void RecoverDevice()
     {

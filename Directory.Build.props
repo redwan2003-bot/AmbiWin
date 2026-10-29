@@ -11,7 +11,7 @@
     <Authors>Redwan Ahmmed and AmbiWin contributors</Authors>
     <Copyright>Copyright (c) 2026 Redwan Ahmmed and AmbiWin contributors</Copyright>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
-    <Version>1.0.0</Version>
+    <Version>1.1.0</Version>
   </PropertyGroup>
 
   <!-- Reproducible builds on CI (SignPath requires binaries built verifiably from source). -->

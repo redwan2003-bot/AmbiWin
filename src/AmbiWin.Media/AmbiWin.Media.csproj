@@ -1,0 +1,7 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- AmbiWin.Media: now-playing listener (GSMTC) and artwork decode (week 3). -->
+  <Import Project="..\..\build\AmbiWin.Windows.props" />
+  <ItemGroup>
+    <ProjectReference Include="..\AmbiWin.Core\AmbiWin.Core.csproj" />
+  </ItemGroup>
+</Project>

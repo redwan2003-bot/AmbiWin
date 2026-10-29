@@ -1,0 +1,7 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- AmbiWin.Audio: WASAPI loopback capture and device-change handling (week 2). -->
+  <Import Project="..\..\build\AmbiWin.Windows.props" />
+  <ItemGroup>
+    <ProjectReference Include="..\AmbiWin.Core\AmbiWin.Core.csproj" />
+  </ItemGroup>
+</Project>

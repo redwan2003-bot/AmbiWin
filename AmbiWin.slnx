@@ -1,0 +1,16 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/AmbiWin.App/AmbiWin.App.csproj" />
+    <Project Path="src/AmbiWin.Audio/AmbiWin.Audio.csproj" />
+    <Project Path="src/AmbiWin.Core/AmbiWin.Core.csproj" />
+    <Project Path="src/AmbiWin.Media/AmbiWin.Media.csproj" />
+    <Project Path="src/AmbiWin.Platform/AmbiWin.Platform.csproj" />
+    <Project Path="src/AmbiWin.Render/AmbiWin.Render.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/AmbiWin.Core.Tests/AmbiWin.Core.Tests.csproj" />
+  </Folder>
+  <Folder Name="/tools/">
+    <Project Path="tools/BeatBench/BeatBench.csproj" />
+  </Folder>
+</Solution>

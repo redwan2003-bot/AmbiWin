@@ -1,0 +1,54 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+
+jobs:
+  core-tests:
+    name: Core tests (Linux)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - name: Test AmbiWin.Core
+        run: dotnet test tests/AmbiWin.Core.Tests -c Release --logger "console;verbosity=normal"
+
+  windows:
+    name: Windows build (${{ matrix.rid }})
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        rid: [win-x64, win-arm64]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - name: Build solution
+        run: dotnet build AmbiWin.slnx -c Release
+      - name: Test
+        if: matrix.rid == 'win-x64'
+        run: dotnet test tests/AmbiWin.Core.Tests -c Release --no-build
+      - name: Publish app
+        run: dotnet publish src/AmbiWin.App -c Release -r ${{ matrix.rid }} --self-contained -o publish/${{ matrix.rid }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ambiwin-${{ matrix.rid }}
+          path: publish/${{ matrix.rid }}
+          retention-days: 14

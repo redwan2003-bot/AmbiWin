@@ -1,0 +1,7 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- AmbiWin.Render: overlay windows, DirectComposition swap chains, glow shader, frame loop (week 1). -->
+  <Import Project="..\..\build\AmbiWin.Windows.props" />
+  <ItemGroup>
+    <ProjectReference Include="..\AmbiWin.Core\AmbiWin.Core.csproj" />
+  </ItemGroup>
+</Project>

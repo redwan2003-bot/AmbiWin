@@ -1,0 +1,14 @@
+bin/
+obj/
+artifacts/
+TestResults/
+publish/
+.vs/
+.vscode/
+.idea/
+*.user
+*.suo
+*.binlog
+*.DotSettings.user
+Thumbs.db
+.DS_Store

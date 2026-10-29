@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    AmbiWin.Core: pure .NET, no Windows APIs, no project or package references.
+    Everything here runs and is unit-tested on any OS.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <IsAotCompatible>true</IsAotCompatible>
+    <RootNamespace>AmbiWin.Core</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="AmbiWin.Core.Tests" />
+  </ItemGroup>
+
+  <!-- Enforce the layering rule: Core depends on nothing. -->
+  <!-- SDK-added references (e.g. the trimming analyzer package) carry IsImplicitlyDefined and are allowed. -->
+  <Target Name="EnsureCoreHasNoDependencies" BeforeTargets="Build">
+    <ItemGroup>
+      <_AmbiWinExplicitReference Include="@(ProjectReference)" />
+      <_AmbiWinExplicitReference Include="@(PackageReference)" Condition="'%(PackageReference.IsImplicitlyDefined)' != 'true'" />
+    </ItemGroup>
+    <Error Condition="'@(_AmbiWinExplicitReference)' != ''"
+           Text="AmbiWin.Core must not reference other projects or packages (found: @(_AmbiWinExplicitReference)). Move Windows- or library-specific code to another project." />
+  </Target>
+</Project>

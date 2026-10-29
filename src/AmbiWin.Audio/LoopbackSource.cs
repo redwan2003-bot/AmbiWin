@@ -23,7 +23,7 @@ public sealed class LoopbackSource : IDisposable
     private readonly Timer _watchdog;
 
     private BeatDetectorOptions _options;
-    private WasapiLoopbackCapture? _capture;
+    private WasapiRecorder? _capture;
     private BeatDetector? _detector;
     private WaveFormat? _format;
     private float[] _mono = new float[4096];
@@ -62,7 +62,11 @@ public sealed class LoopbackSource : IDisposable
         StopCapture();
         try
         {
-            var capture = new WasapiLoopbackCapture();
+            var capture = new WasapiRecorderBuilder()
+                .WithLoopbackCapture()            // default render device: what the speakers play
+                .WithSharedMode()
+                .WithMmcssThreadPriority("Audio")
+                .Build();
             _format = capture.WaveFormat;
             _detector = new BeatDetector(_format.SampleRate, _options);
             capture.DataAvailable += OnData;
@@ -93,15 +97,23 @@ public sealed class LoopbackSource : IDisposable
         capture.Dispose();
     }
 
-    private void OnData(object? sender, WaveInEventArgs e)
+    private void OnData(ReadOnlySpan<byte> buffer, AudioClientBufferFlags flags, long devicePosition, long qpcPosition)
     {
         lock (_gate)
         {
-            if (_detector is null || _format is null || e.BytesRecorded == 0) return;
+            if (_detector is null || _format is null || buffer.IsEmpty) return;
             _lastPacketTicks = Environment.TickCount64;
 
-            int frames = DownmixToMono(e.BufferSpan[..e.BytesRecorded], _format);
-            _detector.Process(_mono.AsSpan(0, frames));
+            int bytesPerFrame = Math.Max(1, _format.BlockAlign);
+            if ((flags & AudioClientBufferFlags.Silent) != 0)
+            {
+                _detector.ProcessSilence(buffer.Length / bytesPerFrame); // contents are undefined; treat as silence
+            }
+            else
+            {
+                int frames = DownmixToMono(buffer, _format);
+                _detector.Process(_mono.AsSpan(0, frames));
+            }
             _output.Publish(_detector.Latest);
         }
     }
@@ -151,7 +163,7 @@ public sealed class LoopbackSource : IDisposable
 
     private void OnDefaultDeviceChanged(object? sender, DefaultDeviceChangedEventArgs e)
     {
-        if (e.DataFlow != DataFlow.Render) return;
+        if (e.Flow != DataFlow.Render) return;
         Log.Info("Default output device changed; restarting capture.");
         Interlocked.Exchange(ref _restartPending, 1);
     }

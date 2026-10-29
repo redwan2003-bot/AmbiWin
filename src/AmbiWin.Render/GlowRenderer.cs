@@ -259,7 +259,7 @@ public sealed class GlowRenderer : IDisposable
             foreach (var strip in overlay.Strips)
             {
                 constants.StripOffset = new Vector2(strip.X, strip.Y);
-                ctx.UpdateSubresource(ref constants, _constants!, 0, 0, 0, null);
+                ctx.UpdateSubresource(in constants, _constants!, 0, 0, 0, null);
                 ctx.OMSetRenderTargets(strip.Target!, null);
                 ctx.RSSetViewport(0, 0, strip.Width, strip.Height, 0, 1);
                 ctx.Draw(3, 0);

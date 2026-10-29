@@ -20,6 +20,9 @@ internal static class Program
     [STAThread]
     private static int Main(string[] args)
     {
+        // First, before any window exists: size everything in physical pixels on every monitor.
+        Monitors.EnablePerMonitorDpiAwareness();
+
         string logPath = ArgValue(args, "--log") ?? DefaultLogPath();
         RotateIfLarge(logPath);
         Log.OpenFile(logPath);
@@ -37,8 +40,6 @@ internal static class Program
         string version = typeof(Program).Assembly
             .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion ?? "dev";
         Log.Info($"AmbiWin {version} starting on {Environment.OSVersion.VersionString}");
-
-        Monitors.EnablePerMonitorDpiAwareness();
 
         var app = new Application
         {

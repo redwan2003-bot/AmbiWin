@@ -3,28 +3,41 @@
 Ambient light for Windows. AmbiWin turns the edges of your screen into a soft glow that takes its color from the
 album art of whatever is playing and pulses with the beat.
 
-> **Status: pre-alpha.** The core audio and color engine works and is tested; the on-screen overlay is next.
-
-## What it will do
+## Features
 
 - A glow around the screen edges that never blocks clicks, never takes focus and never appears in screenshots,
-  recordings or screen shares.
-- Colors from the playing track's album art (Spotify, Apple Music, YouTube in the browser and more),
-  or two colors you pick.
-- Motion that follows the beat, or a steady idle glow.
-- Hides itself in fullscreen games and video, and goes quiet on battery.
+  recordings or screen shares (you can turn that off to record a demo).
+- Colors from the playing track's album art (Spotify, Apple Music, YouTube in the browser, anything that shows
+  in the Windows media controls), or a color you pick.
+- Motion that follows the beat, or a steady glow. Adjustable size, brightness, softness and beat sensitivity,
+  plus a delay for Bluetooth headphones.
+- Steps aside for fullscreen games, video and slideshows; sleeps when the screen is locked or off;
+  runs at reduced rate (or steady) on battery.
+- One screen or all screens. Lives in the notification area; starts with Windows if you want.
+- Light on resources: about 1% CPU while pulsing, nothing at all when there is nothing to draw.
+
+## Install
+
+1. Download the latest `AmbiWin-x.y.z-win-x64.zip` from [Releases](https://github.com/redwan2003-bot/AmbiWin/releases)
+   (`win-arm64` for ARM laptops).
+2. Extract it to a folder you keep, for example `Documents\AmbiWin`, and run `AmbiWin.exe`.
+3. AmbiWin isn't code-signed yet, so Windows SmartScreen may say it "protected your PC". Choose
+   **More info → Run anyway**. The source is all here if you'd rather build it yourself.
+
+Click the AmbiWin icon in the notification area for settings. To uninstall, turn off *Start with Windows*,
+quit AmbiWin, and delete its folder and `%LOCALAPPDATA%\AmbiWin`.
 
 ## Privacy
 
 AmbiWin analyzes system audio live, on your PC, to sync the light. Nothing is recorded, saved or uploaded.
 Track titles and artwork never leave your PC. There are no accounts, no analytics and no tracking.
-The only network request is an optional check for updates.
+AmbiWin makes no network requests at all.
 
 ## Requirements
 
 Windows 11 (x64 or ARM64). Building needs the [.NET 10 SDK](https://dotnet.microsoft.com/download).
 
-## Build
+## Build from source
 
 ```
 dotnet build AmbiWin.slnx -c Release
@@ -53,8 +66,8 @@ Only commit audio you have the right to publish, such as CC-licensed music with 
 | `AmbiWin.Audio` | WASAPI loopback capture |
 | `AmbiWin.Media` | Now-playing listener and artwork |
 | `AmbiWin.Render` | Overlay windows, swap chains, glow shader |
-| `AmbiWin.Platform` | Fullscreen, power, lock and monitor events; start with Windows |
-| `AmbiWin.App` | Tray icon, settings window, wiring |
+| `AmbiWin.Platform` | Fullscreen detection |
+| `AmbiWin.App` | Tray icon, settings window, power and lock events, start with Windows, wiring |
 
 See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the rules that keep this structure healthy.
 

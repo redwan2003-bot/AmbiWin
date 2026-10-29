@@ -32,3 +32,6 @@ Record each decision with its date and reason. The week-1 spike decides the firs
 | 2026-10-29 | Overlay: layered, click-through window + DirectComposition, 4 strip swap chains | Day-1 test on Windows 11 (build 26300, Intel UHD): visible, click-through, absent from screenshots |
 | 2026-10-29 | Frame cap: draw on every Nth compositor tick, target 60 fps | 144 Hz uncapped cost ~8% CPU; capped: 71 fps at 0.8–1.2% process CPU |
 | 2026-10-29 | Audio: NAudio 3 `WasapiRecorderBuilder` loopback, MMCSS "Audio" priority | `WasapiLoopbackCapture` is obsolete in NAudio 3 |
+| 2026-10-29 | Fullscreen detection: poll the foreground window every 500 ms + `SHQueryUserNotificationState` | One cheap check catches F11, borderless games and exclusive D3D alike; event hooks miss some of these |
+| 2026-10-29 | Display off, lock, sleep, AC/battery from a hidden window's push notifications | Nothing polls; resume reopens audio capture because the old stream can go silent |
+| 2026-10-29 | Release: self-contained single-file exe in a zip per architecture, unsigned for v1.0 | No installer or runtime needed; signing (SignPath/Azure Trusted Signing) is a v1.1 item |

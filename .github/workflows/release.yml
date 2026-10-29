@@ -1,0 +1,64 @@
+name: Release
+
+# Push a tag like v1.0.0 to build both Windows packages and publish a GitHub release.
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+env:
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+
+jobs:
+  package:
+    name: Package (${{ matrix.rid }})
+    runs-on: windows-latest
+    strategy:
+      matrix:
+        rid: [win-x64, win-arm64]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - name: Test
+        if: matrix.rid == 'win-x64'
+        run: dotnet test tests/AmbiWin.Core.Tests -c Release
+      - name: Publish single-file app
+        shell: pwsh
+        run: |
+          $version = '${{ github.ref_name }}'.TrimStart('v')
+          dotnet publish src/AmbiWin.App -c Release -r ${{ matrix.rid }} --self-contained `
+            -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true `
+            -p:EnableCompressionInSingleFile=true -p:DebugType=none `
+            -p:Version=$version -o out
+          Copy-Item LICENSE, README.md out/
+          New-Item -ItemType Directory dist | Out-Null
+          Compress-Archive -Path out/* -DestinationPath "dist/AmbiWin-$version-${{ matrix.rid }}.zip"
+          Get-ChildItem out, dist | Format-Table Name, Length
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-${{ matrix.rid }}
+          path: dist/*.zip
+
+  release:
+    name: GitHub release
+    needs: package
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*.zip
+          prerelease: ${{ contains(github.ref_name, '-') }}
+          generate_release_notes: true
+          body: |
+            **Download:** `AmbiWin-…-win-x64.zip` for most PCs, `win-arm64` for Snapdragon / ARM laptops.
+            Extract to a folder you keep (for example `Documents\AmbiWin`) and run `AmbiWin.exe`.
+            Windows 11 only. The app is not code-signed yet, so SmartScreen may warn: choose **More info → Run anyway**.

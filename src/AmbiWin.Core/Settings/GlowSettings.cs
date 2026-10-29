@@ -54,6 +54,9 @@ public sealed record GlowSettings
     public int SpreadPx { get; init; } = 48;
     public float Intensity { get; init; } = 0.8f;
     public int CornerRadiusPx { get; init; } = 10;
+
+    /// <summary>Run the glow along the top of the taskbar (curving around it) instead of over it.</summary>
+    public bool WrapTaskbar { get; init; } = true;
     public float Sensitivity { get; init; } = 0.5f;
 
     /// <summary>Null = not set by the user; the app picks 0, or 150 ms on Bluetooth output.</summary>

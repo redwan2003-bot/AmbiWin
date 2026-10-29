@@ -104,6 +104,9 @@ internal sealed unsafe class OverlayWindow : IDisposable
             case Native.WM_DPICHANGED:
                 DisplayChanged = true;
                 break;
+            case Native.WM_SETTINGCHANGE when wParam == Native.SPI_SETWORKAREA:
+                DisplayChanged = true; // taskbar moved, resized, or auto-hide switched
+                break;
         }
         return Native.DefWindowProc(hwnd, msg, wParam, lParam);
     }

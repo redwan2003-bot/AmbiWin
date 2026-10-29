@@ -24,6 +24,8 @@ internal static unsafe partial class Native
     public const uint PM_REMOVE = 0x1;
     public const uint WM_DISPLAYCHANGE = 0x007E;
     public const uint WM_DPICHANGED = 0x02E0;
+    public const uint WM_SETTINGCHANGE = 0x001A;
+    public const nuint SPI_SETWORKAREA = 0x002F;
     public const uint WM_QUIT = 0x0012;
     public const uint WM_NCHITTEST = 0x0084;
     public const nint HTTRANSPARENT = -1;

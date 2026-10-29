@@ -99,6 +99,8 @@
         <TextBlock x:Name="CornerValue" Grid.Column="1" Style="{StaticResource RowValue}" />
       </Grid>
       <Slider x:Name="CornerSlider" Minimum="0" Maximum="48" TickFrequency="1" IsSnapToTickEnabled="True" ValueChanged="OnSliderChanged" />
+      <CheckBox x:Name="WrapTaskbarBox" Content="Wrap around the taskbar" Margin="0,10,0,0" Checked="OnChanged" Unchecked="OnChanged" />
+      <TextBlock Style="{StaticResource Hint}" Text="The glow runs along the top of the taskbar and curves around it, instead of over it." />
 
       <!-- Music -->
       <TextBlock Text="Music" Style="{StaticResource SectionHeader}" />

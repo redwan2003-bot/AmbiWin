@@ -32,4 +32,10 @@ if ($ShowInCapture) { $appArgs += "--show-in-capture" }
 if ($Idle) { $appArgs += "--idle" }
 
 Write-Host "Log: $log" -ForegroundColor Cyan
-dotnet run --project src/AmbiWin.App -c Release -- @appArgs
+
+# A PowerShell window opened before the .NET SDK was installed has a stale PATH: fall back to the default location.
+$dotnet = (Get-Command dotnet -ErrorAction SilentlyContinue).Source
+if (-not $dotnet) { $dotnet = Join-Path $env:ProgramFiles "dotnet\dotnet.exe" }
+if (-not (Test-Path $dotnet)) { throw "The .NET SDK was not found. Install it with: winget install Microsoft.DotNet.SDK.10" }
+
+& $dotnet run --project src/AmbiWin.App -c Release -- @appArgs

@@ -7,6 +7,7 @@ using AmbiWin.Core.Diagnostics;
 using AmbiWin.Core.Settings;
 using AmbiWin.Core.Threading;
 using AmbiWin.Media;
+using AmbiWin.Platform;
 using AmbiWin.Render;
 
 namespace AmbiWin.App;
@@ -27,6 +28,8 @@ public sealed class AppController : IDisposable
     private readonly LoopbackSource _loopback;
     private readonly NowPlayingWatcher _nowPlaying;
     private readonly DispatcherTimer _pauseTimer;
+    private readonly FullscreenWatcher _fullscreen = new();
+    private SystemEventsWindow? _systemEvents;
     private TrayIcon? _tray;
     private SettingsWindow? _settingsWindow;
     private string? _track;
@@ -64,6 +67,9 @@ public sealed class AppController : IDisposable
         Log.Info($"Settings: {SettingsStore.DefaultPath}{(Settings.IsFirstRun ? " (first run)" : "")}");
         _renderer.Start();
         _loopback.Start();
+        _fullscreen.Changed += _renderer.SetFullscreenMonitor;
+        _fullscreen.Start();
+        StartSystemEvents();
         _ = _nowPlaying.StartAsync().ContinueWith(t => Log.Error("Now-playing watcher failed", t.Exception),
             TaskContinuationOptions.OnlyOnFaulted);
         StartupRegistration.Apply(Settings.Current.StartWithWindows);
@@ -80,6 +86,29 @@ public sealed class AppController : IDisposable
         {
             ShowSettings(); // opened by hand from the Start menu or Explorer
         }
+    }
+
+    private void StartSystemEvents()
+    {
+        _renderer.SetOnBattery(System.Windows.Forms.SystemInformation.PowerStatus.PowerLineStatus == System.Windows.Forms.PowerLineStatus.Offline);
+        try
+        {
+            _systemEvents = new SystemEventsWindow();
+        }
+        catch (Exception ex)
+        {
+            Log.Error("System notifications unavailable", ex);
+            return;
+        }
+        _systemEvents.DisplayOffChanged += off => _renderer.SetSuspended(SuspendReason.DisplayOff, off);
+        _systemEvents.SessionLockedChanged += locked => _renderer.SetSuspended(SuspendReason.SessionLocked, locked);
+        _systemEvents.OnBatteryChanged += _renderer.SetOnBattery;
+        _systemEvents.Suspending += () => Log.Info("System suspending.");
+        _systemEvents.Resumed += () =>
+        {
+            Log.Info("System resumed; reopening audio capture.");
+            _loopback.Restart();
+        };
     }
 
     private void OnSettingsChanged(GlowSettings before, GlowSettings after)
@@ -136,6 +165,8 @@ public sealed class AppController : IDisposable
         Settings.Flush();
         _pauseTimer.Stop();
         _tray?.Dispose();
+        _fullscreen.Dispose();
+        _systemEvents?.Dispose();
         _nowPlaying.Dispose();
         _loopback.Dispose();
         _renderer.Dispose();

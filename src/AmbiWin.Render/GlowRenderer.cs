@@ -35,6 +35,8 @@ public sealed class GlowRenderer : IDisposable
     private volatile bool _stop;
     private int _suspendReasons; // SuspendReason flags; glow hidden while any is set
     private readonly Queue<(double Time, AudioFeatures Features)> _delayedAudio = new();
+    private volatile string? _fullscreenDevice; // monitor covered by a fullscreen app, if any
+    private volatile bool _onBattery;
 
     // GPU state (render thread only)
     private IDXGIFactory2? _factory;
@@ -55,7 +57,6 @@ public sealed class GlowRenderer : IDisposable
     private Palette _fadeTo;
     private float _fadeElapsed = PaletteFadeSeconds;
     private GlowSettings? _appliedSettings;
-    private bool _visible = true;
 
     public GlowRenderer(Latest<GlowSettings> settings, Latest<Palette> palette, Latest<AudioFeatures> audio, WakeSignal wake)
     {
@@ -87,6 +88,22 @@ public sealed class GlowRenderer : IDisposable
     }
 
     public SuspendReason Suspended => (SuspendReason)Volatile.Read(ref _suspendReasons);
+
+    /// <summary>Monitor (device name) a fullscreen app covers, or null. Hidden per the HideInFullscreen setting.</summary>
+    public void SetFullscreenMonitor(string? deviceName)
+    {
+        _fullscreenDevice = deviceName;
+        _wake.Set();
+    }
+
+    /// <summary>Running on battery: applies the BatteryMode setting (30 fps, or steady glow).</summary>
+    public void SetOnBattery(bool onBattery)
+    {
+        if (_onBattery == onBattery) return;
+        _onBattery = onBattery;
+        Log.Info(onBattery ? "On battery." : "On AC power.");
+        _wake.Set();
+    }
 
     public void Dispose()
     {
@@ -126,6 +143,8 @@ public sealed class GlowRenderer : IDisposable
         double lastFrameAt = 0;
         double lastFlushAt = last;
         double tickSeconds = 1.0 / 60; // refined from measured compositor ticks
+        int fastFlushes = 0;
+        double targetFps = TargetFps;
 
         while (!_stop)
         {
@@ -146,12 +165,30 @@ public sealed class GlowRenderer : IDisposable
             var settings = _settings.Value;
             bool dirty = ApplySettings(settings);
 
-            bool show = settings.Enabled && Volatile.Read(ref _suspendReasons) == 0 && _overlays.Count > 0;
-            if (show != _visible)
+            // Per-monitor visibility: global switches, then the fullscreen rule.
+            bool globallyShown = settings.Enabled && Volatile.Read(ref _suspendReasons) == 0;
+            string? fullscreen = _fullscreenDevice;
+            bool show = false;
+            foreach (var o in _overlays)
             {
-                foreach (var o in _overlays) o.Window.Show(show);
-                _visible = show;
+                bool hiddenByFullscreen = fullscreen is not null && settings.HideInFullscreen switch
+                {
+                    FullscreenHide.AllMonitors => true,
+                    FullscreenHide.ThatMonitor => string.Equals(o.Window.Monitor.DeviceName, fullscreen, StringComparison.OrdinalIgnoreCase),
+                    _ => false,
+                };
+                bool visible = globallyShown && !hiddenByFullscreen;
+                if (visible != o.Visible)
+                {
+                    o.Window.Show(visible);
+                    o.Visible = visible;
+                    if (visible) dirty = true; // redraw what came back
+                }
+                show |= visible;
             }
+
+            bool onBattery = _onBattery;
+            targetFps = onBattery && settings.BatteryMode == BatteryMode.Reduced ? 30 : TargetFps;
 
             if (!show)
             {
@@ -162,7 +199,7 @@ public sealed class GlowRenderer : IDisposable
 
             // Targets for this frame. With a headphone delay, use the audio from that long ago.
             var audio = DelayedAudio(now, settings.AudioDelayMs ?? 0);
-            bool music = settings.Animation == AnimationMode.MusicSync;
+            bool music = settings.Animation == AnimationMode.MusicSync && !(onBattery && settings.BatteryMode == BatteryMode.Idle);
             float targetLevel = music ? (audio.Silent ? 0f : audio.Level) : 0.6f;
             float targetPulse = music && !audio.Silent ? audio.Pulse : 0f;
             _level.Step(targetLevel, dt, attackSeconds: 0.030f, releaseSeconds: 0.250f);
@@ -191,7 +228,7 @@ public sealed class GlowRenderer : IDisposable
             {
                 // Frame cap: draw on every Nth compositor tick so the rate stays near TargetFps on any refresh rate
                 // (144 Hz → 72 fps, 120 Hz → 60, 60 Hz → 60). Half a tick of slack keeps frames on tick boundaries.
-                if (dirty || now >= lastFrameAt + 1.0 / TargetFps - tickSeconds * 0.5)
+                if (dirty || now >= lastFrameAt + 1.0 / targetFps - tickSeconds * 0.5)
                 {
                     long start = Stopwatch.GetTimestamp();
                     if (!RenderFrame(settings)) RecoverDevice();
@@ -199,8 +236,17 @@ public sealed class GlowRenderer : IDisposable
                     FramesRendered++;
                     lastFrameAt = now;
                 }
+                double beforeFlush = clock.Elapsed.TotalSeconds;
                 _ = Native.DwmFlush(); // wait for the next compositor tick
                 double afterFlush = clock.Elapsed.TotalSeconds;
+
+                // With the display off DWM stops composing and DwmFlush returns at once: never spin a core.
+                fastFlushes = afterFlush - beforeFlush < 0.0005 ? fastFlushes + 1 : 0;
+                if (fastFlushes >= 3)
+                {
+                    Thread.Sleep((int)(1000 / targetFps));
+                    afterFlush = clock.Elapsed.TotalSeconds;
+                }
                 double tick = afterFlush - lastFlushAt;
                 if (tick > 0.002 && tick < 0.05) tickSeconds += (tick - tickSeconds) * 0.1; // smoothed refresh period
                 lastFlushAt = afterFlush;
@@ -214,7 +260,7 @@ public sealed class GlowRenderer : IDisposable
             if (now >= statsAt)
             {
                 long frames = FramesRendered - framesAtStats;
-                Log.Info($"Render: {frames / 10.0:0.0} fps over 10 s, {(frames > 0 ? busySeconds / frames * 1000 : 0):0.00} ms CPU/frame, " +
+                Log.Info($"Render: {frames / 10.0:0.0} fps (cap {targetFps:0}) over 10 s, {(frames > 0 ? busySeconds / frames * 1000 : 0):0.00} ms CPU/frame, " +
                          $"{(active ? "active" : settling || fading ? "settling" : "parked")}, level {_level.Value:0.00}, " +
                          $"refresh {1 / tickSeconds:0} Hz, process CPU {CpuPercent():0.0}%, overlays {_overlays.Count}");
                 framesAtStats = FramesRendered;
@@ -233,7 +279,7 @@ public sealed class GlowRenderer : IDisposable
         if (previous is null) return true;
 
         bool geometryChanged = previous.ThicknessPx != settings.ThicknessPx || previous.SpreadPx != settings.SpreadPx;
-        bool monitorsChanged = !previous.Monitors.SequenceEqual(settings.Monitors);
+        bool monitorsChanged = previous.AllScreens != settings.AllScreens || !previous.Monitors.SequenceEqual(settings.Monitors);
         if (monitorsChanged)
         {
             DisposeOverlays();
@@ -264,6 +310,7 @@ public sealed class GlowRenderer : IDisposable
 
         foreach (var overlay in _overlays)
         {
+            if (!overlay.Visible) continue;
             float scale = overlay.Window.Monitor.Scale;
             var constants = new GlowConstants
             {
@@ -401,9 +448,9 @@ public sealed class GlowRenderer : IDisposable
         foreach (var m in monitors)
             Log.Info($"Monitor {m.DeviceName}: {m.Width}x{m.Height} at ({m.X},{m.Y}), scale {m.Scale:0.00}{(m.IsPrimary ? ", primary" : "")}");
 
-        // No per-monitor choices saved yet → primary monitor only.
-        var enabled = settings.Monitors.Count == 0
-            ? monitors.Where(m => m.IsPrimary)
+        // All screens, or per-monitor choices if any are saved, else the primary monitor only.
+        var enabled = settings.AllScreens ? monitors
+            : settings.Monitors.Count == 0 ? monitors.Where(m => m.IsPrimary)
             : monitors.Where(m => settings.Monitors.TryGetValue(m.DeviceName, out var s) && s.Enabled);
 
         foreach (var monitor in enabled)
@@ -417,7 +464,6 @@ public sealed class GlowRenderer : IDisposable
             _overlays.Add(overlay);
         }
         _dcomp!.Commit().CheckError();
-        _visible = true;
         _appliedSettings = settings;
         Log.Info($"Overlays ready on {_overlays.Count} monitor(s); hidden from capture: {settings.HideFromCapture}.");
     }
@@ -435,6 +481,7 @@ public sealed class GlowRenderer : IDisposable
         public IDCompositionTarget? Target { get; set; }
         public IDCompositionVisual? Root { get; set; }
         public List<Strip> Strips { get; } = [];
+        public bool Visible { get; set; } = true;
         public float Depth { get; private set; }
 
         public void ResizeStrips(GlowRenderer renderer, GlowSettings settings)

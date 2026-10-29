@@ -59,7 +59,10 @@ public sealed record GlowSettings
     /// <summary>Null = not set by the user; the app picks 0, or 150 ms on Bluetooth output.</summary>
     public int? AudioDelayMs { get; init; }
 
-    /// <summary>Keyed by monitor device path. Empty = primary monitor only.</summary>
+    /// <summary>Glow on every connected screen (otherwise the primary screen only).</summary>
+    public bool AllScreens { get; init; }
+
+    /// <summary>Per-monitor choices keyed by device name (future use). Empty = primary monitor only.</summary>
     public Dictionary<string, MonitorSettings> Monitors { get; init; } = new();
 
     public FullscreenHide HideInFullscreen { get; init; } = FullscreenHide.ThatMonitor;

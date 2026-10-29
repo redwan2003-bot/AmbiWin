@@ -46,6 +46,9 @@ public sealed class LoopbackSource : IDisposable
         _watchdog.Change(WatchdogPeriod, WatchdogPeriod);
     }
 
+    /// <summary>Reopens capture on the current default device (after sleep/resume the old stream can go silent).</summary>
+    public void Restart() => Interlocked.Exchange(ref _restartPending, 1);
+
     /// <summary>Applies new detector options (e.g. the sensitivity setting) without restarting capture.</summary>
     public void UpdateOptions(BeatDetectorOptions options)
     {

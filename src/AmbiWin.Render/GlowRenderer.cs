@@ -33,7 +33,8 @@ public sealed class GlowRenderer : IDisposable
     private readonly WakeSignal _wake;
     private readonly Thread _thread;
     private volatile bool _stop;
-    private volatile bool _suspended;
+    private int _suspendReasons; // SuspendReason flags; glow hidden while any is set
+    private readonly Queue<(double Time, AudioFeatures Features)> _delayedAudio = new();
 
     // GPU state (render thread only)
     private IDXGIFactory2? _factory;
@@ -71,12 +72,21 @@ public sealed class GlowRenderer : IDisposable
 
     public void Start() => _thread.Start();
 
-    /// <summary>Hides the glow and parks the render thread (fullscreen apps, lock, display off).</summary>
-    public void SetSuspended(bool suspended)
+    /// <summary>Hides the glow while <paramref name="reason"/> holds; the glow returns when no reason remains.</summary>
+    public void SetSuspended(SuspendReason reason, bool on)
     {
-        _suspended = suspended;
+        int bit = (int)reason;
+        int current, next;
+        do
+        {
+            current = Volatile.Read(ref _suspendReasons);
+            next = on ? current | bit : current & ~bit;
+        } while (Interlocked.CompareExchange(ref _suspendReasons, next, current) != current);
+        if (next != current) Log.Info($"Glow {(next == 0 ? "resumed" : "suspended")} ({(SuspendReason)next}).");
         _wake.Set();
     }
+
+    public SuspendReason Suspended => (SuspendReason)Volatile.Read(ref _suspendReasons);
 
     public void Dispose()
     {
@@ -136,7 +146,7 @@ public sealed class GlowRenderer : IDisposable
             var settings = _settings.Value;
             bool dirty = ApplySettings(settings);
 
-            bool show = settings.Enabled && !_suspended && _overlays.Count > 0;
+            bool show = settings.Enabled && Volatile.Read(ref _suspendReasons) == 0 && _overlays.Count > 0;
             if (show != _visible)
             {
                 foreach (var o in _overlays) o.Window.Show(show);
@@ -150,8 +160,8 @@ public sealed class GlowRenderer : IDisposable
                 continue;
             }
 
-            // Targets for this frame.
-            var audio = _audio.Value;
+            // Targets for this frame. With a headphone delay, use the audio from that long ago.
+            var audio = DelayedAudio(now, settings.AudioDelayMs ?? 0);
             bool music = settings.Animation == AnimationMode.MusicSync;
             float targetLevel = music ? (audio.Silent ? 0f : audio.Level) : 0.6f;
             float targetPulse = music && !audio.Silent ? audio.Pulse : 0f;
@@ -290,6 +300,30 @@ public sealed class GlowRenderer : IDisposable
     }
 
     private static float Clamp01(float v) => Math.Clamp(v, 0f, 1f);
+
+    /// <summary>
+    /// Bluetooth headphones play sound 100–300 ms after Windows hands it over, while loopback hears it at
+    /// hand-over. Holding audio features back by the same delay puts the light back on the beat.
+    /// </summary>
+    private AudioFeatures DelayedAudio(double now, int delayMs)
+    {
+        var latest = _audio.Value;
+        if (delayMs <= 0)
+        {
+            _delayedAudio.Clear();
+            return latest;
+        }
+
+        _delayedAudio.Enqueue((now, latest));
+        double cutoff = now - delayMs / 1000.0;
+        AudioFeatures? delayed = null;
+        while (_delayedAudio.Count > 0 && _delayedAudio.Peek().Time <= cutoff)
+            delayed = _delayedAudio.Dequeue().Features;
+        if (delayed is { } d) _lastDelayed = d;
+        return _lastDelayed;
+    }
+
+    private AudioFeatures _lastDelayed = AudioFeatures.SilentAt(TimeSpan.Zero);
 
     private TimeSpan _cpuAtLastSample;
     private long _wallAtLastSample = Stopwatch.GetTimestamp();

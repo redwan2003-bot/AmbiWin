@@ -1,27 +1,38 @@
 using System.Reflection;
-using AmbiWin.Audio;
-using AmbiWin.Core.Audio;
-using AmbiWin.Core.Color;
+using System.Windows;
 using AmbiWin.Core.Diagnostics;
-using AmbiWin.Core.Settings;
-using AmbiWin.Core.Threading;
-using AmbiWin.Media;
 using AmbiWin.Render;
 
 namespace AmbiWin.App;
 
 /// <summary>
-/// Day-1 entry point: glow on the primary monitor, pulsing to whatever plays.
-/// Console-hosted for now; day 2 replaces this with the tray app and settings window.
+/// Entry point of the tray app.
 ///
-///   AmbiWin [--log path] [--show-in-capture] [--idle]
+///   AmbiWin [--background] [--log path]
+///
+/// --background: started by Windows at sign-in; don't open the settings window.
+/// --log: write the log somewhere other than %LOCALAPPDATA%\AmbiWin\logs (used by dev\run.cmd).
 /// </summary>
 internal static class Program
 {
+    private const long MaxLogBytes = 2 * 1024 * 1024;
+
+    [STAThread]
     private static int Main(string[] args)
     {
-        string? logPath = ArgValue(args, "--log");
-        if (logPath is not null) Log.OpenFile(logPath);
+        string logPath = ArgValue(args, "--log") ?? DefaultLogPath();
+        RotateIfLarge(logPath);
+        Log.OpenFile(logPath);
+
+        AppDomain.CurrentDomain.UnhandledException += (_, e) =>
+            Log.Error("Unhandled exception", e.ExceptionObject as Exception);
+
+        using var instance = SingleInstance.TryAcquire();
+        if (instance is null)
+        {
+            Log.Info("AmbiWin is already running; asked it to open settings.");
+            return 0;
+        }
 
         string version = typeof(Program).Assembly
             .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion ?? "dev";
@@ -29,35 +40,40 @@ internal static class Program
 
         Monitors.EnablePerMonitorDpiAwareness();
 
-        var store = new SettingsStore(SettingsStore.DefaultPath);
-        var settings = store.Load();
-        if (args.Contains("--show-in-capture")) settings = settings with { HideFromCapture = false };
-        if (args.Contains("--idle")) settings = settings with { Animation = AnimationMode.Idle };
-        Log.Info($"Settings: {store.FilePath} (color {settings.ColorSource}, {settings.Animation}, " +
-                 $"thickness {settings.ThicknessPx}, spread {settings.SpreadPx}, hidden from capture {settings.HideFromCapture})");
+        var app = new Application
+        {
+            ShutdownMode = ShutdownMode.OnExplicitShutdown,
+            ThemeMode = ThemeMode.System, // Windows 11 Fluent look, light or dark to match the system
+        };
+        app.DispatcherUnhandledException += (_, e) =>
+        {
+            Log.Error("Unhandled UI exception", e.Exception);
+            e.Handled = true; // keep the glow running; the log has the details
+        };
 
-        using var wake = new WakeSignal();
-        var settingsSnapshot = new Latest<GlowSettings>(settings, wake);
-        var palette = new Latest<Palette>(settings.ManualPalette(), wake);
-        var audio = new Latest<AudioFeatures>(AudioFeatures.SilentAt(TimeSpan.Zero), wake);
+        using var controller = new AppController(app);
+        instance.Listen(controller.ShowSettings);
+        controller.Start(background: args.Contains("--background"));
 
-        using var renderer = new GlowRenderer(settingsSnapshot, palette, audio, wake);
-        using var loopback = new LoopbackSource(audio, new BeatDetectorOptions().WithSensitivity(settings.Sensitivity));
-
-        using var nowPlaying = new NowPlayingWatcher(palette);
-
-        renderer.Start();
-        loopback.Start();
-        nowPlaying.StartAsync().GetAwaiter().GetResult();
-
-        var quit = new ManualResetEventSlim();
-        Console.CancelKeyPress += (_, e) => { e.Cancel = true; quit.Set(); };
-        Log.Info("Running. Press Ctrl+C to quit.");
-        quit.Wait();
-
-        Log.Info($"Stopping after {renderer.FramesRendered} frames.");
+        app.Run();
         Log.Close();
         return 0;
+    }
+
+    private static string DefaultLogPath() =>
+        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "AmbiWin", "logs", "ambiwin.log");
+
+    /// <summary>Keeps one previous log (ambiwin.log.old) so the log never grows without bound.</summary>
+    private static void RotateIfLarge(string path)
+    {
+        try
+        {
+            var info = new FileInfo(path);
+            if (info.Exists && info.Length > MaxLogBytes)
+                File.Move(path, path + ".old", overwrite: true);
+        }
+        catch (IOException) { }
+        catch (UnauthorizedAccessException) { }
     }
 
     private static string? ArgValue(string[] args, string name)

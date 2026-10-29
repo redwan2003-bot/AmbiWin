@@ -1,15 +1,12 @@
 # Developer run script: update the code, then build and run AmbiWin with a log file.
 #
-#   dev\run.cmd                      run the current branch
-#   dev\run.cmd -Branch day1-overlay switch to a branch first
-#   dev\run.cmd -ShowInCapture       glow visible in screenshots/recordings (for demos and remote checks)
-#   dev\run.cmd -Idle                steady glow, no music sync
+#   dev\run.cmd                   run the current branch
+#   dev\run.cmd -Branch day2-app  switch to a branch first
 #
-# Logs go to .logs\ in the repo (ignored by git). Stop with Ctrl+C.
+# AmbiWin runs in the notification area: quit it from its tray menu ("Quit AmbiWin").
+# Logs go to .logs\ in the repo (ignored by git).
 param(
     [string]$Branch = "",
-    [switch]$ShowInCapture,
-    [switch]$Idle,
     [switch]$NoUpdate
 )
 
@@ -28,10 +25,9 @@ New-Item -ItemType Directory -Force -Path $logDir | Out-Null
 $log = Join-Path $logDir ("run-" + (Get-Date -Format "yyyyMMdd-HHmmss") + ".log")
 
 $appArgs = @("--log", $log)
-if ($ShowInCapture) { $appArgs += "--show-in-capture" }
-if ($Idle) { $appArgs += "--idle" }
 
 Write-Host "Log: $log" -ForegroundColor Cyan
+Write-Host "AmbiWin runs in the notification area. Quit it from its tray menu." -ForegroundColor Cyan
 
 # A PowerShell window opened before the .NET SDK was installed has a stale PATH: fall back to the default location.
 $dotnet = (Get-Command dotnet -ErrorAction SilentlyContinue).Source

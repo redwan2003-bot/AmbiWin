@@ -16,6 +16,8 @@ public sealed partial class SystemEventsWindow : IDisposable
 
     private const int WM_POWERBROADCAST = 0x0218;
     private const int WM_WTSSESSION_CHANGE = 0x02B1;
+    private const int WM_HOTKEY = 0x0312;
+    private const uint MOD_ALT = 0x1, MOD_CONTROL = 0x2, MOD_NOREPEAT = 0x4000;
     private const int PBT_APMSUSPEND = 0x0004;
     private const int PBT_APMRESUMEAUTOMATIC = 0x0012;
     private const int PBT_POWERSETTINGCHANGE = 0x8013;
@@ -25,6 +27,7 @@ public sealed partial class SystemEventsWindow : IDisposable
     private readonly HwndSource _source;
     private readonly List<nint> _powerRegistrations = [];
     private readonly bool _sessionRegistered;
+    private readonly Dictionary<int, Action> _hotkeys = [];
 
     public SystemEventsWindow()
     {
@@ -50,6 +53,19 @@ public sealed partial class SystemEventsWindow : IDisposable
 
     public event Action? Resumed;
 
+    /// <summary>Registers a system-wide Ctrl+Alt+<paramref name="key"/> shortcut. Returns false if another app owns it.</summary>
+    public bool RegisterCtrlAltHotkey(char key, Action onPressed)
+    {
+        int id = _hotkeys.Count + 1;
+        if (!RegisterHotKey(_source.Handle, id, MOD_CONTROL | MOD_ALT | MOD_NOREPEAT, char.ToUpperInvariant(key)))
+        {
+            Log.Warn($"Ctrl+Alt+{key} is already used by another app.");
+            return false;
+        }
+        _hotkeys[id] = onPressed;
+        return true;
+    }
+
     private nint WndProc(nint hwnd, int msg, nint wParam, nint lParam, ref bool handled)
     {
         switch (msg)
@@ -57,6 +73,10 @@ public sealed partial class SystemEventsWindow : IDisposable
             case WM_WTSSESSION_CHANGE:
                 if (wParam == WTS_SESSION_LOCK) SessionLockedChanged?.Invoke(true);
                 else if (wParam == WTS_SESSION_UNLOCK) SessionLockedChanged?.Invoke(false);
+                break;
+
+            case WM_HOTKEY:
+                if (_hotkeys.TryGetValue((int)wParam, out var action)) action();
                 break;
 
             case WM_POWERBROADCAST:
@@ -96,6 +116,7 @@ public sealed partial class SystemEventsWindow : IDisposable
     {
         foreach (var h in _powerRegistrations.Where(h => h != 0)) UnregisterPowerSettingNotification(h);
         if (_sessionRegistered) WTSUnRegisterSessionNotification(_source.Handle);
+        foreach (int id in _hotkeys.Keys) UnregisterHotKey(_source.Handle, id);
         _source.RemoveHook(WndProc);
         _source.Dispose();
     }
@@ -114,6 +135,14 @@ public sealed partial class SystemEventsWindow : IDisposable
     [LibraryImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
     private static partial bool UnregisterPowerSettingNotification(nint handle);
+
+    [LibraryImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static partial bool RegisterHotKey(nint hwnd, int id, uint modifiers, uint virtualKey);
+
+    [LibraryImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static partial bool UnregisterHotKey(nint hwnd, int id);
 
     [LibraryImport("wtsapi32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]

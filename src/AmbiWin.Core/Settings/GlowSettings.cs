@@ -76,6 +76,13 @@ public sealed record GlowSettings
     public bool HideFromCapture { get; init; } = true;
     public string ToggleHotkey { get; init; } = "Ctrl+Alt+G";
 
+    /// <summary>Show the floating mini player (Ctrl+Alt+M toggles it).</summary>
+    public bool MiniPlayer { get; init; }
+
+    /// <summary>Mini player position in device-independent pixels; null = default (bottom right, above the taskbar).</summary>
+    public double? MiniPlayerLeft { get; init; }
+    public double? MiniPlayerTop { get; init; }
+
     /// <summary>
     /// Keys this version does not know, kept so a downgrade or newer file never loses settings.
     /// Settable (not init) because System.Text.Json cannot bind extension data through init-only setters.

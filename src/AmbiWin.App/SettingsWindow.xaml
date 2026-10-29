@@ -119,6 +119,7 @@
       <!-- General -->
       <TextBlock Text="General" Style="{StaticResource SectionHeader}" />
       <CheckBox x:Name="StartupBox" Content="Start with Windows" Checked="OnChanged" Unchecked="OnChanged" />
+      <CheckBox x:Name="MiniPlayerBox" Content="Show the mini player (Ctrl+Alt+M)" Margin="0,8,0,0" Checked="OnChanged" Unchecked="OnChanged" />
       <CheckBox x:Name="AllScreensBox" Content="Glow on all screens (otherwise the main screen only)" Margin="0,8,0,0" Checked="OnChanged" Unchecked="OnChanged" />
       <CheckBox x:Name="CaptureBox" Content="Hide the glow from screenshots, recordings and screen shares" Margin="0,8,0,0" Checked="OnChanged" Unchecked="OnChanged" />
       <TextBlock Style="{StaticResource Hint}" Text="Turn this off to record a demo of AmbiWin." />

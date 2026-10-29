@@ -365,7 +365,7 @@ public sealed class GlowRenderer : IDisposable
                 StripDepth = overlay.Depth,
                 ScreenMix = overlay.Sampler?.View is null ? 0f : _screenMix,
             };
-            ctx.PSSetShaderResource(0, overlay.Sampler?.View);
+            ctx.PSSetShaderResource(0, overlay.Sampler?.View!); // null unbinds
 
             foreach (var strip in overlay.Strips)
             {

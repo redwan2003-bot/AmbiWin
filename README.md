@@ -9,6 +9,9 @@ album art of whatever is playing and pulses with the beat.
   recordings or screen shares (you can turn that off to record a demo).
 - Colors from the playing track's album art (Spotify, Apple Music, YouTube in the browser, anything that shows
   in the Windows media controls), or a color you pick.
+- **Ambilight mode:** each part of the glow takes the color of what's on screen next to it, smoothed so
+  scene cuts fade instead of flashing. Works with music sync on top, and with fullscreen video
+  (set *In fullscreen apps* to *Keep glowing*).
 - Motion that follows the beat, or a steady glow. Adjustable size, brightness, softness and beat sensitivity,
   plus a delay for Bluetooth headphones.
 - Steps aside for fullscreen games, video and slideshows; sleeps when the screen is locked or off;

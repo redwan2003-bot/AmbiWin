@@ -20,7 +20,7 @@ internal struct GlowConstants
     public float Level;           // 0..1, eased loudness
     public float Pulse;           // 0..1, eased onset impulse
     public float StripDepth;      // px: light fades to zero before the strip edge
-    public float Padding;
+    public float ScreenMix;       // 0..1 share of screen colors (Ambilight mode)
 
     public static readonly uint Size = (uint)Marshal.SizeOf<GlowConstants>();
 }
@@ -40,8 +40,11 @@ internal static class GlowShader
             float3 ColorA;       float  Mix;
             float3 ColorB;       float  Phase;
             float  Level;        float  Pulse;
-            float  StripDepth;   float  Padding;
+            float  StripDepth;   float  ScreenMix;
         };
+
+        Texture2D    ScreenColors : register(t0);   // tiny, smoothed copy of the screen (linear light)
+        SamplerState Linear       : register(s0);
 
         float4 VSMain(uint id : SV_VertexID) : SV_Position
         {
@@ -77,6 +80,14 @@ internal static class GlowShader
             float t = 0.5 + 0.5 * cos(6.2831853 * u);
             float w = smoothstep(1.0 - Mix - 0.3, 1.0 - Mix + 0.3, t);
             float3 c = lerp(ColorB, ColorA, w);
+
+            // Ambilight: the color of the content just inside this point of the edge.
+            if (ScreenMix > 0)
+            {
+                float2 inset = MonitorSize * float2(0.04, 0.06);
+                float2 q = clamp(p, inset, MonitorSize - inset) / MonitorSize;
+                c = lerp(c, ScreenColors.SampleLevel(Linear, q, 0).rgb, ScreenMix);
+            }
 
             c += (hash(pos.xy) - 0.5) / 255.0;                           // dither against banding
             return float4(c * a, a);                                     // premultiplied alpha

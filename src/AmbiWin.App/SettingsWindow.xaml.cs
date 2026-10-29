@@ -56,7 +56,8 @@ public partial class SettingsWindow : Window
         EnabledBox.IsChecked = s.Enabled;
         MusicRadio.IsChecked = s.Animation == AnimationMode.MusicSync;
         IdleRadio.IsChecked = s.Animation == AnimationMode.Idle;
-        AlbumRadio.IsChecked = s.ColorSource != ColorSource.Manual;
+        AlbumRadio.IsChecked = s.ColorSource == ColorSource.AlbumArt;
+        ScreenRadio.IsChecked = s.ColorSource == ColorSource.Screen;
         ManualRadio.IsChecked = s.ColorSource == ColorSource.Manual;
         PrimaryHex.Text = s.ManualPrimary.ToUpperInvariant();
         SecondaryHex.Text = s.ManualSecondary.ToUpperInvariant();
@@ -110,7 +111,8 @@ public partial class SettingsWindow : Window
         {
             Enabled = EnabledBox.IsChecked == true,
             Animation = IdleRadio.IsChecked == true ? AnimationMode.Idle : AnimationMode.MusicSync,
-            ColorSource = ManualRadio.IsChecked == true ? ColorSource.Manual : ColorSource.AlbumArt,
+            ColorSource = ManualRadio.IsChecked == true ? ColorSource.Manual
+                : ScreenRadio.IsChecked == true ? ColorSource.Screen : ColorSource.AlbumArt,
             Mix = (float)(MixSlider.Value / 100),
             Intensity = (float)(IntensitySlider.Value / 100),
             ThicknessPx = (int)ThicknessSlider.Value,

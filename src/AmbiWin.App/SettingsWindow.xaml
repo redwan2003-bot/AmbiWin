@@ -41,8 +41,9 @@
       <!-- Color -->
       <TextBlock Text="Color" Style="{StaticResource SectionHeader}" />
       <RadioButton x:Name="AlbumRadio" GroupName="ColorSource" Content="From the playing song's album art" Checked="OnChanged" />
+      <RadioButton x:Name="ScreenRadio" GroupName="ColorSource" Content="From what's on screen (Ambilight)" Checked="OnChanged" Margin="0,6,0,0" />
       <RadioButton x:Name="ManualRadio" GroupName="ColorSource" Content="My colors" Checked="OnChanged" Margin="0,6,0,0" />
-      <TextBlock Style="{StaticResource Hint}" Text="Your colors are also used when nothing is playing." />
+      <TextBlock Style="{StaticResource Hint}" TextWrapping="Wrap" Text="Your colors are also used when nothing is playing. For Ambilight with fullscreen video, set In fullscreen apps to Keep glowing." />
 
       <Grid Margin="0,8,0,0">
         <Grid.ColumnDefinitions>

@@ -52,6 +52,8 @@ public sealed class GlowRenderer : IDisposable
     private OnePole _level;
     private OnePole _pulse;
     private float _phase;
+    private ID3D11SamplerState? _linearSampler;
+    private float _screenMix;           // eased 0..1 toward the Ambilight mode
     private Palette _shownPalette;
     private Palette _fadeFrom;
     private Palette _fadeTo;
@@ -220,6 +222,15 @@ public sealed class GlowRenderer : IDisposable
                 _shownPalette = Palette.Lerp(_fadeFrom, _fadeTo, Ease.InOutCubic(_fadeElapsed / PaletteFadeSeconds));
             }
 
+            // Ambilight: sample the screen under each visible overlay and fade between modes.
+            bool screenMode = settings.ColorSource == ColorSource.Screen;
+            bool screenMoving = UpdateScreenSamplers(screenMode, now, dt);
+            float screenTarget = screenMode ? 1f : 0f;
+            bool screenFading = _screenMix != screenTarget;
+            if (screenFading)
+                _screenMix = Math.Clamp(_screenMix + Math.Sign(screenTarget - _screenMix) * dt / PaletteFadeSeconds, 0f, 1f);
+            fading |= screenFading || screenMoving;
+
             bool active = music && !audio.Silent;
             bool settling = Math.Abs(_level.Value - targetLevel) > 0.002f || _pulse.Value > 0.002f;
             if (active) _phase = (_phase + dt * 0.01f) % 1f; // slow drift of the gradient while music plays
@@ -253,8 +264,9 @@ public sealed class GlowRenderer : IDisposable
             }
             else
             {
-                // Parked: the last frame stays on screen. Wake on any new snapshot.
-                _wake.Wait(TimeSpan.FromMilliseconds(200));
+                // Parked: the last frame stays on screen. Wake on any new snapshot
+                // (and look at the screen again soon in Ambilight mode).
+                _wake.Wait(TimeSpan.FromMilliseconds(screenMode ? 50 : 200));
             }
 
             if (now >= statsAt)
@@ -269,6 +281,30 @@ public sealed class GlowRenderer : IDisposable
             }
         }
     }
+
+    /// <summary>Runs each visible overlay's screen sampler while screen colors are on or fading out.</summary>
+    private bool UpdateScreenSamplers(bool screenMode, double now, float dt)
+    {
+        bool moving = false;
+        bool needed = screenMode || _screenMix > 0;
+        foreach (var o in _overlays)
+        {
+            if (needed && o.Visible)
+            {
+                o.Sampler ??= new ScreenSampler(_device!, o.Window.Monitor);
+                moving |= o.Sampler.Update(_context!, now, dt);
+            }
+            else if (!needed && o.Sampler is not null)
+            {
+                o.Sampler.Dispose();
+                o.Sampler = null;
+            }
+        }
+        return moving;
+    }
+
+    /// <summary>The glow must never appear in its own screen capture, so Ambilight mode always hides it.</summary>
+    private static bool HideFromCapture(GlowSettings s) => s.HideFromCapture || s.ColorSource == ColorSource.Screen;
 
     /// <summary>Applies settings that change geometry or window state. Returns true when a redraw is needed.</summary>
     private bool ApplySettings(GlowSettings settings)
@@ -290,7 +326,7 @@ public sealed class GlowRenderer : IDisposable
             foreach (var o in _overlays)
             {
                 if (geometryChanged) o.ResizeStrips(this, settings);
-                if (o.Window.HiddenFromCapture != settings.HideFromCapture) o.Window.SetHiddenFromCapture(settings.HideFromCapture);
+                if (o.Window.HiddenFromCapture != HideFromCapture(settings)) o.Window.SetHiddenFromCapture(HideFromCapture(settings));
             }
             if (geometryChanged) _dcomp!.Commit().CheckError();
         }
@@ -304,6 +340,7 @@ public sealed class GlowRenderer : IDisposable
         ctx.VSSetShader(_vs);
         ctx.PSSetShader(_ps);
         ctx.PSSetConstantBuffer(0, _constants);
+        ctx.PSSetSampler(0, _linearSampler);
 
         var a = _shownPalette.Primary.ToLinearSrgb();
         var b = _shownPalette.Secondary.ToLinearSrgb();
@@ -326,7 +363,9 @@ public sealed class GlowRenderer : IDisposable
                 Level = _level.Value,
                 Pulse = _pulse.Value,
                 StripDepth = overlay.Depth,
+                ScreenMix = overlay.Sampler?.View is null ? 0f : _screenMix,
             };
+            ctx.PSSetShaderResource(0, overlay.Sampler?.View);
 
             foreach (var strip in overlay.Strips)
             {
@@ -429,10 +468,12 @@ public sealed class GlowRenderer : IDisposable
         _ps = _device.CreatePixelShader(psCode.Span, null);
         _constants = _device.CreateBuffer(GlowConstants.Size, BindFlags.ConstantBuffer, ResourceUsage.Default,
             CpuAccessFlags.None, ResourceOptionFlags.None, 0);
+        _linearSampler = _device.CreateSamplerState(SamplerDescription.LinearClamp);
     }
 
     private void DisposeDevice()
     {
+        _linearSampler?.Dispose(); _linearSampler = null;
         _constants?.Dispose(); _constants = null;
         _ps?.Dispose(); _ps = null;
         _vs?.Dispose(); _vs = null;
@@ -455,7 +496,7 @@ public sealed class GlowRenderer : IDisposable
 
         foreach (var monitor in enabled)
         {
-            var overlay = new MonitorOverlay(new OverlayWindow(monitor, settings.HideFromCapture));
+            var overlay = new MonitorOverlay(new OverlayWindow(monitor, HideFromCapture(settings)));
             _dcomp!.CreateTargetForHwnd(overlay.Window.Handle, true, out var target).CheckError();
             overlay.Target = target;
             overlay.Root = _dcomp.CreateVisual();
@@ -465,7 +506,7 @@ public sealed class GlowRenderer : IDisposable
         }
         _dcomp!.Commit().CheckError();
         _appliedSettings = settings;
-        Log.Info($"Overlays ready on {_overlays.Count} monitor(s); hidden from capture: {settings.HideFromCapture}.");
+        Log.Info($"Overlays ready on {_overlays.Count} monitor(s); hidden from capture: {HideFromCapture(settings)}.");
     }
 
     private void DisposeOverlays()
@@ -482,6 +523,7 @@ public sealed class GlowRenderer : IDisposable
         public IDCompositionVisual? Root { get; set; }
         public List<Strip> Strips { get; } = [];
         public bool Visible { get; set; } = true;
+        public ScreenSampler? Sampler { get; set; }
         public float Depth { get; private set; }
 
         public void ResizeStrips(GlowRenderer renderer, GlowSettings settings)
@@ -506,6 +548,8 @@ public sealed class GlowRenderer : IDisposable
         {
             foreach (var s in Strips) s.Dispose();
             Strips.Clear();
+            Sampler?.Dispose();
+            Sampler = null;
             Root?.Dispose();
             Target?.Dispose();
             Window.Dispose();

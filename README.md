@@ -29,14 +29,19 @@ album art of whatever is playing and pulses with the beat.
   plus a delay for Bluetooth headphones.
 - Steps aside for fullscreen games, video and slideshows; sleeps when the screen is locked or off;
   runs at reduced rate (or steady) on battery.
+- **Mini player:** a floating liquid-glass player with album art, progress and play/pause/skip, tinted with the
+  glow colors. Toggle it with **Ctrl+Alt+M** or from the tray; drag it anywhere.
+- **Wraps around the taskbar:** the glow runs along the top of the taskbar and curves around it instead of
+  covering it, and follows the taskbar if you move or hide it.
 - One screen or all screens. Lives in the notification area; starts with Windows if you want.
 - Light on resources: about 1% CPU while pulsing, nothing at all when there is nothing to draw.
 
 ## Install
 
-1. Download the latest `AmbiWin-x.y.z-win-x64.zip` from [Releases](https://github.com/redwan2003-bot/AmbiWin/releases)
-   (`win-arm64` for ARM laptops).
-2. Extract it to a folder you keep, for example `Documents\AmbiWin`, and run `AmbiWin.exe`.
+1. Download the latest `AmbiWin-x.y.z-win-x64.exe` from [Releases](https://github.com/redwan2003-bot/AmbiWin/releases)
+   (`win-arm64` for ARM laptops). It's a single file with nothing to install; the `.zip` has the same app plus the
+   license and readme.
+2. Put it in a folder you keep, for example `Documents\AmbiWin`, and run it.
 3. AmbiWin isn't code-signed yet, so Windows SmartScreen may say it "protected your PC". Choose
    **More info → Run anyway**. The source is all here if you'd rather build it yourself.
 

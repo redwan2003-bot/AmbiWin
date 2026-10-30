@@ -38,11 +38,14 @@ jobs:
           Copy-Item LICENSE, README.md out/
           New-Item -ItemType Directory dist | Out-Null
           Compress-Archive -Path out/* -DestinationPath "dist/AmbiWin-$version-${{ matrix.rid }}.zip"
+          Copy-Item out/AmbiWin.exe "dist/AmbiWin-$version-${{ matrix.rid }}.exe"
           Get-ChildItem out, dist | Format-Table Name, Length
       - uses: actions/upload-artifact@v4
         with:
           name: release-${{ matrix.rid }}
-          path: dist/*.zip
+          path: |
+            dist/*.zip
+            dist/*.exe
 
   release:
     name: GitHub release
@@ -55,10 +58,13 @@ jobs:
           merge-multiple: true
       - uses: softprops/action-gh-release@v2
         with:
-          files: dist/*.zip
+          files: |
+            dist/*.zip
+            dist/*.exe
           prerelease: ${{ contains(github.ref_name, '-') }}
           generate_release_notes: true
           body: |
-            **Download:** `AmbiWin-…-win-x64.zip` for most PCs, `win-arm64` for Snapdragon / ARM laptops.
-            Extract to a folder you keep (for example `Documents\AmbiWin`) and run `AmbiWin.exe`.
+            **Download:** `AmbiWin-…-win-x64.exe` for most PCs, `win-arm64` for Snapdragon / ARM laptops.
+            It's a single file with nothing to install: put it in a folder you keep (for example `Documents\AmbiWin`) and run it.
+            The `.zip` files hold the same app plus the license and readme.
             Windows 11 only. The app is not code-signed yet, so SmartScreen may warn: choose **More info → Run anyway**.

@@ -1,14 +1,21 @@
 name: Release
 
-# Push a tag like v1.0.0 to build both Windows packages and publish a GitHub release.
+# Push a tag like v1.0.0, or run this workflow by hand from the Actions tab (works from a phone),
+# to build both Windows packages and publish a GitHub release.
 on:
   push:
     tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to release, e.g. v1.2.0 (the tag is created on the selected branch)'
+        required: true
 
 permissions:
   contents: write
 
 env:
+  TAG: ${{ github.event.inputs.version || github.ref_name }}
   DOTNET_NOLOGO: true
   DOTNET_CLI_TELEMETRY_OPTOUT: true
 
@@ -30,7 +37,8 @@ jobs:
       - name: Publish single-file app
         shell: pwsh
         run: |
-          $version = '${{ github.ref_name }}'.TrimStart('v')
+          $version = $env:TAG.TrimStart('v')
+          if ($version -notmatch '^\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$') { throw "Version '$env:TAG' should look like v1.2.0" }
           dotnet publish src/AmbiWin.App -c Release -r ${{ matrix.rid }} --self-contained `
             -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true `
             -p:EnableCompressionInSingleFile=true -p:DebugType=none `
@@ -58,10 +66,12 @@ jobs:
           merge-multiple: true
       - uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ env.TAG }}
+          target_commitish: ${{ github.sha }}
           files: |
             dist/*.zip
             dist/*.exe
-          prerelease: ${{ contains(github.ref_name, '-') }}
+          prerelease: ${{ contains(env.TAG, '-') }}
           generate_release_notes: true
           body: |
             **Download:** `AmbiWin-…-win-x64.exe` for most PCs, `win-arm64` for Snapdragon / ARM laptops.

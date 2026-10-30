@@ -1,0 +1,30 @@
+<!doctype html><html><head><meta charset="utf-8"><style>
+html,body{margin:0;background:#07070c}
+.b{width:1280px;height:400px;position:relative;overflow:hidden;background:
+ radial-gradient(900px 300px at 50% 120%, rgba(124,92,255,.18), transparent 70%),
+ radial-gradient(700px 260px at 50% -30%, rgba(0,209,255,.10), transparent 70%), #07070c;
+ font-family:"Inter Display",Inter,sans-serif;color:#fff}
+/* the "screen" whose edges glow */
+.screen{position:absolute;left:88px;top:52px;right:88px;bottom:52px;border-radius:22px;background:#0c0c14}
+.edge{position:absolute;inset:0;border-radius:22px;padding:3px;
+ background:conic-gradient(from 210deg,#7c5cff,#b35cff,#ff5c9d,#ff9a5c,#00d1ff,#5c8dff,#7c5cff);
+ -webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask-composite:exclude}
+.halo{position:absolute;inset:0}
+.halo .ring{position:absolute;inset:-6px;border-radius:28px;padding:12px;
+ background:conic-gradient(from 210deg,#7c5cff,#b35cff,#ff5c9d,#ff9a5c,#00d1ff,#5c8dff,#7c5cff);
+ -webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask-composite:exclude}
+.halo.wide{filter:blur(38px);opacity:.85}.halo.tight{filter:blur(10px);opacity:.9}
+.inner{position:absolute;inset:3px;border-radius:19px;background:
+ radial-gradient(120% 90% at 50% 50%, #0d0d16 55%, rgba(124,92,255,.10) 85%, rgba(0,209,255,.14) 100%)}
+.content{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px}
+h1{margin:0;font-size:104px;font-weight:700;letter-spacing:-3px;line-height:1;
+ background:linear-gradient(100deg,#ffffff 30%,#cfc4ff 60%,#9ee9ff 90%);-webkit-background-clip:text;color:transparent}
+p{margin:0;font-family:Inter,sans-serif;font-size:24px;font-weight:400;color:rgba(255,255,255,.72);letter-spacing:-.2px}
+.chips{display:flex;gap:10px;margin-top:10px}
+.chip{font-family:Inter,sans-serif;font-size:14px;font-weight:500;padding:6px 14px;border-radius:999px;
+ color:rgba(255,255,255,.85);background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12)}
+</style></head><body><div class="b">
+ <div class="screen"><div class="halo wide"><div class="ring"></div></div><div class="halo tight"><div class="ring"></div></div><div class="inner"></div><div class="edge"></div>
+  <div class="content"><h1>AmbiWin</h1><p>Ambient light for Windows. Your screen edges glow with your music.</p>
+   <div class="chips"><span class="chip">Free &amp; open source</span><span class="chip">Beat sync</span><span class="chip">Album-art colors</span><span class="chip">Ambilight mode</span><span class="chip">Windows 11</span></div></div>
+ </div></div></body></html>

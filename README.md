@@ -1,7 +1,20 @@
+<p align="center">
+  <img src="docs/media/banner.png" alt="AmbiWin: ambient light for Windows. Your screen edges glow with your music." width="100%">
+</p>
+
+<p align="center">
+  <a href="https://github.com/redwan2003-bot/AmbiWin/releases/latest"><b>Download for Windows 11</b></a> ·
+  <a href="#features">Features</a> · <a href="#install">Install</a> · <a href="#privacy">Privacy</a>
+</p>
+
 # AmbiWin
 
 Ambient light for Windows. AmbiWin turns the edges of your screen into a soft glow that takes its color from the
 album art of whatever is playing and pulses with the beat.
+
+<p align="center">
+  <img src="docs/media/demo.gif" alt="The screen edges glowing and pulsing to music" width="720">
+</p>
 
 ## Features
 

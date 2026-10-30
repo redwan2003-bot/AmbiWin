@@ -71,6 +71,8 @@ public partial class SettingsWindow : Window
         StartupBox.IsChecked = s.StartWithWindows;
         CaptureBox.IsChecked = s.HideFromCapture;
         AllScreensBox.IsChecked = s.AllScreens;
+        MiniPlayerBox.IsChecked = s.MiniPlayer;
+        WrapTaskbarBox.IsChecked = s.WrapTaskbar;
         FullscreenCombo.SelectedIndex = (int)s.HideInFullscreen;
         BatteryCombo.SelectedIndex = (int)s.BatteryMode;
         UpdateLabels();
@@ -123,6 +125,8 @@ public partial class SettingsWindow : Window
             StartWithWindows = StartupBox.IsChecked == true,
             HideFromCapture = CaptureBox.IsChecked == true,
             AllScreens = AllScreensBox.IsChecked == true,
+            MiniPlayer = MiniPlayerBox.IsChecked == true,
+            WrapTaskbar = WrapTaskbarBox.IsChecked == true,
             HideInFullscreen = (FullscreenHide)Math.Max(0, FullscreenCombo.SelectedIndex),
             BatteryMode = (BatteryMode)Math.Max(0, BatteryCombo.SelectedIndex),
         });

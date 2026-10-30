@@ -15,6 +15,7 @@ public sealed class TrayIcon : IDisposable
     private readonly ToolStripMenuItem _pause;
     private readonly ToolStripMenuItem _music;
     private readonly ToolStripMenuItem _steady;
+    private readonly ToolStripMenuItem _miniPlayer;
 
     public TrayIcon(AppController app)
     {
@@ -26,12 +27,13 @@ public sealed class TrayIcon : IDisposable
         _pause = new ToolStripMenuItem("Pause for 1 hour", null, (_, _) => _app.TogglePause());
         _music = new ToolStripMenuItem("Pulse with music", null, (_, _) => _app.SetAnimation(Core.Settings.AnimationMode.MusicSync));
         _steady = new ToolStripMenuItem("Steady glow", null, (_, _) => _app.SetAnimation(Core.Settings.AnimationMode.Idle));
+        _miniPlayer = new ToolStripMenuItem("Mini player", null, (_, _) => _app.ToggleMiniPlayer()) { ShortcutKeyDisplayString = "Ctrl+Alt+M" };
         var settings = new ToolStripMenuItem("Settings…", null, (_, _) => _app.ShowSettings()) { Font = new Font(header.Font, FontStyle.Regular) };
         var quit = new ToolStripMenuItem("Quit AmbiWin", null, (_, _) => _app.Quit());
 
         var menu = new ContextMenuStrip();
         menu.Items.AddRange([header, new ToolStripSeparator(), _enabled, _pause, new ToolStripSeparator(),
-            _music, _steady, new ToolStripSeparator(), settings, quit]);
+            _music, _steady, new ToolStripSeparator(), _miniPlayer, settings, quit]);
         menu.Opening += (_, _) => RefreshChecks();
 
         _icon = new NotifyIcon
@@ -52,6 +54,7 @@ public sealed class TrayIcon : IDisposable
         _pause.Enabled = s.Enabled;
         _music.Checked = s.Animation == Core.Settings.AnimationMode.MusicSync;
         _steady.Checked = s.Animation == Core.Settings.AnimationMode.Idle;
+        _miniPlayer.Checked = s.MiniPlayer;
     }
 
     /// <summary>Shows the playing track in the tooltip (Windows limits tooltips to 127 characters).</summary>

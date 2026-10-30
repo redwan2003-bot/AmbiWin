@@ -54,6 +54,9 @@ public sealed record GlowSettings
     public int SpreadPx { get; init; } = 48;
     public float Intensity { get; init; } = 0.8f;
     public int CornerRadiusPx { get; init; } = 10;
+
+    /// <summary>Run the glow along the top of the taskbar (curving around it) instead of over it.</summary>
+    public bool WrapTaskbar { get; init; } = true;
     public float Sensitivity { get; init; } = 0.5f;
 
     /// <summary>Null = not set by the user; the app picks 0, or 150 ms on Bluetooth output.</summary>
@@ -75,6 +78,13 @@ public sealed record GlowSettings
     /// </summary>
     public bool HideFromCapture { get; init; } = true;
     public string ToggleHotkey { get; init; } = "Ctrl+Alt+G";
+
+    /// <summary>Show the floating mini player (Ctrl+Alt+M toggles it).</summary>
+    public bool MiniPlayer { get; init; }
+
+    /// <summary>Mini player position in device-independent pixels; null = default (bottom right, above the taskbar).</summary>
+    public double? MiniPlayerLeft { get; init; }
+    public double? MiniPlayerTop { get; init; }
 
     /// <summary>
     /// Keys this version does not know, kept so a downgrade or newer file never loses settings.

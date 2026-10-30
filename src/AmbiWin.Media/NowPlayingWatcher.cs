@@ -8,6 +8,31 @@ using Windows.Storage.Streams;
 
 namespace AmbiWin.Media;
 
+/// <summary>Album art as straight-alpha BGRA pixels (Size × Size), ready for any UI toolkit.</summary>
+public sealed record Artwork(byte[] Bgra, int Size);
+
+/// <summary>What is playing, for the mini player. Position is extrapolated from <see cref="PositionAt"/> while playing.</summary>
+public sealed record NowPlaying(
+    string Title,
+    string Artist,
+    string AppId,
+    bool IsPlaying,
+    TimeSpan Position,
+    TimeSpan Duration,
+    DateTimeOffset PositionAt,
+    bool CanPrevious,
+    bool CanNext,
+    bool CanPlayPause,
+    Artwork? Artwork)
+{
+    public TimeSpan CurrentPosition(DateTimeOffset now)
+    {
+        if (Duration <= TimeSpan.Zero) return TimeSpan.Zero;
+        var p = IsPlaying ? Position + (now - PositionAt) : Position;
+        return p < TimeSpan.Zero ? TimeSpan.Zero : p > Duration ? Duration : p;
+    }
+}
+
 /// <summary>
 /// Watches Windows' media sessions (Spotify, Apple Music, browsers, …) and publishes a glow palette
 /// from the playing track's album art. Property changes are debounced (players often fire twice per
@@ -19,6 +44,7 @@ public sealed class NowPlayingWatcher : IDisposable
     private static readonly TimeSpan Debounce = TimeSpan.FromMilliseconds(300);
     private static readonly TimeSpan ArtworkRetry = TimeSpan.FromSeconds(1);
     private const int ArtworkSize = 64;
+    private const int DisplayArtworkSize = 256;
     private const int CacheCapacity = 64;
 
     private readonly Latest<Palette> _palette;
@@ -33,6 +59,10 @@ public sealed class NowPlayingWatcher : IDisposable
     private GlobalSystemMediaTransportControlsSessionManager? _manager;
     private string? _lastTrackKey;
     private bool _retriedArtwork;
+    private GlobalSystemMediaTransportControlsSession? _session;
+    private Artwork? _displayArt;
+    private string? _displayArtKey;
+    private NowPlaying? _nowPlaying;
     private bool _disposed;
 
     public NowPlayingWatcher(Latest<Palette> palette)
@@ -46,6 +76,33 @@ public sealed class NowPlayingWatcher : IDisposable
 
     /// <summary>Raised (on a thread-pool thread) when <see cref="CurrentTrack"/> changes.</summary>
     public event Action<string?>? TrackChanged;
+
+    /// <summary>Full now-playing state for the mini player; null when nothing is playing or paused.</summary>
+    public NowPlaying? Current => _nowPlaying;
+
+    /// <summary>Raised (on a thread-pool thread) when anything in <see cref="Current"/> changes.</summary>
+    public event Action<NowPlaying?>? NowPlayingChanged;
+
+    public Task TogglePlayPauseAsync() => Control(s => s.TryTogglePlayPauseAsync().AsTask());
+
+    public Task NextAsync() => Control(s => s.TrySkipNextAsync().AsTask());
+
+    public Task PreviousAsync() => Control(s => s.TrySkipPreviousAsync().AsTask());
+
+    private async Task Control(Func<GlobalSystemMediaTransportControlsSession, Task<bool>> command)
+    {
+        var session = _session ?? PickSession();
+        if (session is null) return;
+        try
+        {
+            await command(session).ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            Log.Warn($"Media command failed: {ex.GetType().Name}: {ex.Message}");
+        }
+        Schedule(TimeSpan.FromMilliseconds(150));
+    }
 
     public async Task StartAsync()
     {
@@ -74,12 +131,14 @@ public sealed class NowPlayingWatcher : IDisposable
             {
                 s.MediaPropertiesChanged -= OnSessionChanged;
                 s.PlaybackInfoChanged -= OnSessionChanged;
+                s.TimelinePropertiesChanged -= OnSessionChanged;
             }
             _subscribed.Clear();
             foreach (var s in _manager.GetSessions())
             {
                 s.MediaPropertiesChanged += OnSessionChanged;
                 s.PlaybackInfoChanged += OnSessionChanged;
+                s.TimelinePropertiesChanged += OnSessionChanged;
                 _subscribed.Add(s);
             }
         }
@@ -115,7 +174,12 @@ public sealed class NowPlayingWatcher : IDisposable
         try
         {
             var session = PickSession();
-            if (session is null) return;
+            _session = session;
+            if (session is null)
+            {
+                SetNowPlaying(null);
+                return;
+            }
 
             var props = await session.TryGetMediaPropertiesAsync();
             if (props is null) return;
@@ -130,6 +194,9 @@ public sealed class NowPlayingWatcher : IDisposable
                 TrackChanged?.Invoke(CurrentTrack);
             }
 
+            if (newTrack) _displayArt = null;
+            PublishNowPlaying(session, props);
+
             if (props.Thumbnail is null)
             {
                 if (!_retriedArtwork)
@@ -140,7 +207,18 @@ public sealed class NowPlayingWatcher : IDisposable
                 return;
             }
 
-            byte[]? pixels = await DecodeAsync(props.Thumbnail);
+            if (_displayArtKey != trackKey || _displayArt is null)
+            {
+                var big = await DecodeAsync(props.Thumbnail, DisplayArtworkSize);
+                if (big is not null)
+                {
+                    _displayArt = new Artwork(big, DisplayArtworkSize);
+                    _displayArtKey = trackKey;
+                    PublishNowPlaying(session, props);
+                }
+            }
+
+            byte[]? pixels = await DecodeAsync(props.Thumbnail, ArtworkSize);
             if (pixels is null) return;
 
             string hash = Convert.ToHexString(SHA256.HashData(pixels));
@@ -168,15 +246,43 @@ public sealed class NowPlayingWatcher : IDisposable
         }
     }
 
-    private static async Task<byte[]?> DecodeAsync(IRandomAccessStreamReference thumbnail)
+    private void PublishNowPlaying(GlobalSystemMediaTransportControlsSession session,
+        GlobalSystemMediaTransportControlsSessionMediaProperties props)
+    {
+        var info = session.GetPlaybackInfo();
+        var timeline = session.GetTimelineProperties();
+        var controls = info?.Controls;
+        var duration = timeline is null ? TimeSpan.Zero : timeline.EndTime - timeline.StartTime;
+        SetNowPlaying(new NowPlaying(
+            Title: props.Title ?? "",
+            Artist: props.Artist ?? "",
+            AppId: session.SourceAppUserModelId ?? "",
+            IsPlaying: info?.PlaybackStatus == GlobalSystemMediaTransportControlsSessionPlaybackStatus.Playing,
+            Position: timeline is null ? TimeSpan.Zero : timeline.Position - timeline.StartTime,
+            Duration: duration > TimeSpan.Zero ? duration : TimeSpan.Zero,
+            PositionAt: timeline?.LastUpdatedTime ?? DateTimeOffset.Now,
+            CanPrevious: controls?.IsPreviousEnabled ?? false,
+            CanNext: controls?.IsNextEnabled ?? false,
+            CanPlayPause: controls is null || controls.IsPlayPauseToggleEnabled || controls.IsPlayEnabled || controls.IsPauseEnabled,
+            Artwork: _displayArt));
+    }
+
+    private void SetNowPlaying(NowPlaying? value)
+    {
+        if (Equals(value, _nowPlaying)) return;
+        _nowPlaying = value;
+        NowPlayingChanged?.Invoke(value);
+    }
+
+    private static async Task<byte[]?> DecodeAsync(IRandomAccessStreamReference thumbnail, int size)
     {
         using var stream = await thumbnail.OpenReadAsync();
         if (stream.Size == 0) return null;
         var decoder = await BitmapDecoder.CreateAsync(stream);
         var transform = new BitmapTransform
         {
-            ScaledWidth = ArtworkSize,
-            ScaledHeight = ArtworkSize,
+            ScaledWidth = (uint)size,
+            ScaledHeight = (uint)size,
             InterpolationMode = BitmapInterpolationMode.Fant,
         };
         var data = await decoder.GetPixelDataAsync(BitmapPixelFormat.Bgra8, BitmapAlphaMode.Straight, transform,
@@ -202,6 +308,7 @@ public sealed class NowPlayingWatcher : IDisposable
             {
                 s.MediaPropertiesChanged -= OnSessionChanged;
                 s.PlaybackInfoChanged -= OnSessionChanged;
+                s.TimelinePropertiesChanged -= OnSessionChanged;
             }
             _subscribed.Clear();
         }

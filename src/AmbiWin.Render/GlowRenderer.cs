@@ -155,7 +155,7 @@ public sealed class GlowRenderer : IDisposable
             if (OverlayWindow.DisplayChanged)
             {
                 OverlayWindow.DisplayChanged = false;
-                Log.Info("Display configuration changed; rebuilding overlays.");
+                Log.Info("Display or taskbar layout changed; rebuilding overlays.");
                 DisposeOverlays();
                 BuildOverlays(_settings.Value);
             }
@@ -314,7 +314,8 @@ public sealed class GlowRenderer : IDisposable
         _appliedSettings = settings;
         if (previous is null) return true;
 
-        bool geometryChanged = previous.ThicknessPx != settings.ThicknessPx || previous.SpreadPx != settings.SpreadPx;
+        bool geometryChanged = previous.ThicknessPx != settings.ThicknessPx || previous.SpreadPx != settings.SpreadPx ||
+                               previous.WrapTaskbar != settings.WrapTaskbar;
         bool monitorsChanged = previous.AllScreens != settings.AllScreens || !previous.Monitors.SequenceEqual(settings.Monitors);
         if (monitorsChanged)
         {
@@ -364,6 +365,7 @@ public sealed class GlowRenderer : IDisposable
                 Pulse = _pulse.Value,
                 StripDepth = overlay.Depth,
                 ScreenMix = overlay.Sampler?.View is null ? 0f : _screenMix,
+                Inset = new Vector4(overlay.Insets.Left, overlay.Insets.Top, overlay.Insets.Right, overlay.Insets.Bottom),
             };
             ctx.PSSetShaderResource(0, overlay.Sampler?.View!); // null unbinds
 
@@ -526,6 +528,9 @@ public sealed class GlowRenderer : IDisposable
         public ScreenSampler? Sampler { get; set; }
         public float Depth { get; private set; }
 
+        /// <summary>Where the light's edge sits, in from the monitor edges: the taskbar's inner edge, or the screen edge.</summary>
+        public EdgeInsets Insets { get; private set; }
+
         public void ResizeStrips(GlowRenderer renderer, GlowSettings settings)
         {
             foreach (var s in Strips) { Root!.RemoveVisual(s.Visual!); s.Dispose(); }
@@ -533,15 +538,21 @@ public sealed class GlowRenderer : IDisposable
 
             var m = Window.Monitor;
             float scale = m.Scale;
+            Insets = settings.WrapTaskbar ? m.WorkInsets : default;
+
+            // The rectangle the glow follows; nothing is drawn outside it (so the taskbar stays clear).
+            int left = Insets.Left, top = Insets.Top;
+            int width = m.Width - Insets.Left - Insets.Right, height = m.Height - Insets.Top - Insets.Bottom;
+
             // Deep enough for the core, the beat-expanded halo and its tail; the shader fades to 0 before the edge.
             int depth = (int)MathF.Ceiling(settings.ThicknessPx * scale + settings.SpreadPx * scale * 1.35f * 1.6f + 4);
-            depth = Math.Clamp(depth, 4, Math.Min(m.Width, m.Height) / 2 - 1);
+            depth = Math.Clamp(depth, 4, Math.Min(width, height) / 2 - 1);
             Depth = depth;
 
-            Strips.Add(Strip.Create(renderer, Root!, 0, 0, m.Width, depth));                            // top
-            Strips.Add(Strip.Create(renderer, Root!, 0, m.Height - depth, m.Width, depth));             // bottom
-            Strips.Add(Strip.Create(renderer, Root!, 0, depth, depth, m.Height - 2 * depth));           // left
-            Strips.Add(Strip.Create(renderer, Root!, m.Width - depth, depth, depth, m.Height - 2 * depth)); // right
+            Strips.Add(Strip.Create(renderer, Root!, left, top, width, depth));                                       // top
+            Strips.Add(Strip.Create(renderer, Root!, left, top + height - depth, width, depth));                      // bottom
+            Strips.Add(Strip.Create(renderer, Root!, left, top + depth, depth, height - 2 * depth));                  // left
+            Strips.Add(Strip.Create(renderer, Root!, left + width - depth, top + depth, depth, height - 2 * depth));   // right
         }
 
         public void Dispose()

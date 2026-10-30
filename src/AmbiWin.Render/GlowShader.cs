@@ -21,6 +21,7 @@ internal struct GlowConstants
     public float Pulse;           // 0..1, eased onset impulse
     public float StripDepth;      // px: light fades to zero before the strip edge
     public float ScreenMix;       // 0..1 share of screen colors (Ambilight mode)
+    public Vector4 Inset;         // px in from left, top, right, bottom: the glow follows this inner rectangle (taskbar wrap)
 
     public static readonly uint Size = (uint)Marshal.SizeOf<GlowConstants>();
 }
@@ -41,6 +42,7 @@ internal static class GlowShader
             float3 ColorB;       float  Phase;
             float  Level;        float  Pulse;
             float  StripDepth;   float  ScreenMix;
+            float4 Inset;        // left, top, right, bottom
         };
 
         Texture2D    ScreenColors : register(t0);   // tiny, smoothed copy of the screen (linear light)
@@ -64,8 +66,9 @@ internal static class GlowShader
         float4 PSMain(float4 pos : SV_Position) : SV_Target
         {
             float2 p = pos.xy + StripOffset;
-            float2 center = MonitorSize * 0.5;
-            float d = -sdRoundRect(p - center, center, CornerRadius);   // px inward from the screen edge
+            float2 lo = Inset.xy, hi = MonitorSize - Inset.zw;          // the edge the light follows
+            float2 center = (lo + hi) * 0.5;
+            float d = -sdRoundRect(p - center, (hi - lo) * 0.5, CornerRadius); // px inward from that edge
             if (d < 0) return float4(0, 0, 0, 0);                        // outside rounded corners
 
             float spread = max(Spread * (1.0 + 0.35 * Pulse), 1.0);    // a beat pushes light further in
@@ -85,7 +88,7 @@ internal static class GlowShader
             if (ScreenMix > 0)
             {
                 float2 inset = MonitorSize * float2(0.04, 0.06);
-                float2 q = clamp(p, inset, MonitorSize - inset) / MonitorSize;
+                float2 q = clamp(p, lo + inset, hi - inset) / MonitorSize;
                 c = lerp(c, ScreenColors.SampleLevel(Linear, q, 0).rgb, ScreenMix);
             }
 

@@ -32,6 +32,7 @@ public sealed class AppController : IDisposable
     private SystemEventsWindow? _systemEvents;
     private TrayIcon? _tray;
     private SettingsWindow? _settingsWindow;
+    private MiniPlayerWindow? _miniPlayer;
     private string? _track;
     private bool _quitting;
 
@@ -56,6 +57,7 @@ public sealed class AppController : IDisposable
             _tray?.SetTrack(track);
             _settingsWindow?.SetTrack(track);
         });
+        _nowPlaying.NowPlayingChanged += np => _app.Dispatcher.BeginInvoke(() => _miniPlayer?.SetNowPlaying(np));
     }
 
     public SettingsService Settings { get; }
@@ -75,6 +77,8 @@ public sealed class AppController : IDisposable
         StartupRegistration.Apply(Settings.Current.StartWithWindows);
 
         _tray = new TrayIcon(this);
+        _systemEvents?.RegisterCtrlAltHotkey('M', ToggleMiniPlayer);
+        ApplyMiniPlayer(Settings.Current.MiniPlayer);
         if (Settings.IsFirstRun)
         {
             Settings.Update(s => s); // writes the settings file so the next start is not a first run
@@ -119,6 +123,8 @@ public sealed class AppController : IDisposable
             StartupRegistration.Apply(after.StartWithWindows);
         if (!after.Enabled && IsPaused)
             SetPaused(false);
+        if (before.MiniPlayer != after.MiniPlayer)
+            ApplyMiniPlayer(after.MiniPlayer);
     }
 
     public void ShowSettings()
@@ -139,6 +145,35 @@ public sealed class AppController : IDisposable
         _settingsWindow.Activate();
     }
 
+    public bool IsMiniPlayerShown => Settings.Current.MiniPlayer;
+
+    public void ToggleMiniPlayer() => Settings.Update(s => s with { MiniPlayer = !s.MiniPlayer });
+
+    private void ApplyMiniPlayer(bool show)
+    {
+        if (!_app.Dispatcher.CheckAccess())
+        {
+            _app.Dispatcher.BeginInvoke(() => ApplyMiniPlayer(show));
+            return;
+        }
+        if (show)
+        {
+            if (_miniPlayer is null)
+            {
+                _miniPlayer = new MiniPlayerWindow(_nowPlaying, Settings,
+                    () => Settings.Current.ColorSource == ColorSource.Manual ? Settings.Current.ManualPalette() : _palette.Value);
+                _miniPlayer.Closed += (_, _) => _miniPlayer = null;
+            }
+            _miniPlayer.Show();
+            Log.Info("Mini player shown.");
+        }
+        else if (_miniPlayer is not null)
+        {
+            _miniPlayer.Close();
+            Log.Info("Mini player hidden.");
+        }
+    }
+
     public void ToggleEnabled() => Settings.Update(s => s with { Enabled = !s.Enabled });
 
     public void SetAnimation(AnimationMode mode) => Settings.Update(s => s with { Animation = mode });
@@ -157,6 +192,7 @@ public sealed class AppController : IDisposable
         _quitting = true;
         Log.Info("Quitting.");
         _settingsWindow?.Close();
+        _miniPlayer?.Close();
         _app.Shutdown();
     }
 
